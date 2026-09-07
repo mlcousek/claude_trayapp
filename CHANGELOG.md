@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Settings to hide the extra-usage line (`showExtraUsage`) and to show the endpoint's inactive codename windows (`showInactiveWindows`).
+
+### Changed
+
+- Codename windows the endpoint reports at 0 % with no reset time (for example "Nimbus quill") are hidden by default in the flyout, the tooltip and the history chart; the documented windows are always shown.
+
 ## [0.1.0] - 2026-09-07
 
 First release. Everything below is new in this version.

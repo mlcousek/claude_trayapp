@@ -92,7 +92,7 @@ single-file analysers, which are errors in Release (IL3000 broke the publish onc
 - Access tokens live about eight hours; Claude Code refreshes them when used. Expect 401 and show a re-authenticate hint instead of failing.
 - JSONL session logs are not a contract. One API response is written as several `assistant` lines sharing `message.id` and `requestId`; dedupe them or costs are overcounted several-fold.
 - The Claude Code CLI on PATH and the desktop app's bundled Claude Code can report different versions.
-- Extra-usage amounts arrive in minor units (`decimal_places`, or `amount_minor` plus `exponent` in the `spend` block). Codename windows such as `nimbus_quill` appear alongside the documented ones and render like any unknown key.
+- Extra-usage amounts arrive in minor units (`decimal_places`, or `amount_minor` plus `exponent` in the `spend` block). Codename windows such as `nimbus_quill` appear alongside the documented ones; they render like any unknown key once they carry a value or a reset time, and stay hidden while inactive (0 %, no reset) unless `showInactiveWindows` is on. Documented keys are always shown.
 - The endpoint's own `limits[].severity` said `warning` at 86 %, below this app's 70/90 status thresholds; the mapping from `limits[].kind` to window keys is unverified, so `limits` is not parsed yet.
 - H.NotifyIcon.Wpf 2.4 dropped net9.0-windows; stay on 2.3.x (Dependabot is told so). Its `IconSource` path rejects `RenderTargetBitmap`, so the tray icon is converted to a `System.Drawing.Icon` by `IconConverter` and set through `TaskbarIcon.Icon`.
 - The tray icon is rendered at the system DPI (16/20/24/32 px). Per-monitor DPI for the taskbar is not tracked; a DPI change triggers a redraw through `SystemEvents.DisplaySettingsChanged`.

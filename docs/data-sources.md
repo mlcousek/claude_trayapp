@@ -70,7 +70,7 @@ User-Agent: claude-code/<version>
 
 What the parser makes of it:
 
-- Every top-level object with a `utilization` number is a window. `utilization` is a percentage on a 0 to 100 scale (float). Windows that do not apply to the account are `null` and skipped. Besides the documented `five_hour`, `seven_day`, `seven_day_opus`, `seven_day_sonnet` and `seven_day_oauth_apps`, the response carries codename windows (`nimbus_quill`, `tangelo`, ...); when one is non-null it renders like any unknown key, sorted after the known ones.
+- Every top-level object with a `utilization` number is a window. `utilization` is a percentage on a 0 to 100 scale (float). Windows that do not apply to the account are `null` and skipped. Besides the documented `five_hour`, `seven_day`, `seven_day_opus`, `seven_day_sonnet` and `seven_day_oauth_apps`, the response carries codename windows (`nimbus_quill`, `tangelo`, ...); when one is non-null it renders like any unknown key, sorted after the known ones, except that an inactive one (0 % and no `resets_at`) is hidden unless the `showInactiveWindows` setting is on; the documented keys are always shown.
 - `resets_at` is ISO-8601 with microseconds and an explicit offset; it is `null` while a window is unused.
 - `locked_reason` is a string when a window is locked; the UI must show it, whatever the percentage says.
 - `extra_usage` amounts (`monthly_limit`, `used_credits`) are in minor units; divide by `10^decimal_places`. The `spend` block repeats the same money as `amount_minor` plus `exponent` and fills any value `extra_usage` leaves null. Without either block there is no overage.
