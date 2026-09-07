@@ -20,6 +20,14 @@ updates:
           - "Shouldly"
           - "NSubstitute"
           - "Microsoft.NET.Test.Sdk"
+    ignore:
+      # The app targets net9.0. Stay on the 9.0.x line of these packages until the TFM moves.
+      - dependency-name: "Microsoft.Extensions.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.Data.Sqlite"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Serilog.Extensions.Hosting"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
