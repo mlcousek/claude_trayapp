@@ -1,0 +1,18 @@
+{
+  "numStartups": 12,
+  "oauthAccount": {
+    "accountUuid": "00000000-0000-0000-0000-00000000aaaa",
+    "emailAddress": "someone@example.com",
+    "organizationUuid": "00000000-0000-0000-0000-00000000bbbb",
+    "hasExtraUsageEnabled": true,
+    "billingType": "stripe_subscription",
+    "displayName": "Someone",
+    "organizationRateLimitTier": "default_claude_max_5x",
+    "organizationName": "Someone's Organization",
+    "organizationType": "individual"
+  },
+  "projects": {
+    "C:/example": { "allowedTools": [] },
+    "c:/example": { "allowedTools": [] }
+  }
+}

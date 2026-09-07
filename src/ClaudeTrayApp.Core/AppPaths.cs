@@ -24,6 +24,7 @@ public sealed class AppPaths
         ClaudeHome = string.IsNullOrWhiteSpace(claudeConfigDirOverride)
             ? Path.Combine(userProfile, ".claude")
             : claudeConfigDirOverride;
+        ClaudeConfigFile = Path.Combine(string.IsNullOrWhiteSpace(claudeConfigDirOverride) ? userProfile : claudeConfigDirOverride, ".claude.json");
     }
 
     /// <summary>Builds the paths for the current user from well-known environment folders.</summary>
@@ -49,6 +50,9 @@ public sealed class AppPaths
 
     /// <summary>Claude Code home (normally ~/.claude). This app only ever reads from it.</summary>
     public string ClaudeHome { get; }
+
+    /// <summary>Claude Code's main config file (<c>~/.claude.json</c>), which holds the account block. Read-only.</summary>
+    public string ClaudeConfigFile { get; }
 
     public string ClaudeCredentialsFile => Path.Combine(ClaudeHome, ".credentials.json");
 
