@@ -74,7 +74,7 @@ What the parser makes of it:
 - `resets_at` is ISO-8601 with microseconds and an explicit offset; it is `null` while a window is unused.
 - `locked_reason` is a string when a window is locked; the UI must show it, whatever the percentage says.
 - `extra_usage` amounts (`monthly_limit`, `used_credits`) are in minor units; divide by `10^decimal_places`. The `spend` block repeats the same money as `amount_minor` plus `exponent` and fills any value `extra_usage` leaves null. Without either block there is no overage.
-- `limits` is a parallel, self-describing list (`kind`, `group`, `percent`, `severity`, `resets_at`, `is_active`). It is not parsed yet: only the first element's shape is known and the `kind` to window mapping is unverified. `severity` was `warning` at 86 %, so Anthropic's own thresholds sit below this app's 70/90 defaults; revisit when the mapping is confirmed.
+- `limits` is a parallel, self-describing list (`kind`, `group`, `percent`, `severity`, `resets_at`, `scope`, `is_active`). Three entries were observed: the active session limit (`kind` 7 chars, `severity` `warning` at 86 % and an 8-character value at 100 %), and two inactive weekly-style entries, one of them with `scope.model` set, so per-model weekly limits live here. It is not parsed yet because the `kind` to window mapping is unverified; `severity` shows Anthropic's own thresholds sit below this app's 70/90 defaults. Revisit when the mapping is confirmed.
 - No plan tier is present in the body; `subscriptionType` from the credentials file is used instead.
 - Response time was well under a second; one request per poll.
 

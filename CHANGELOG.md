@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Tray icon rendered at runtime: ring-arc of the primary window around a compact numeral, colour by status, dimmed when stale, redrawn on data, DPI and theme changes, legible at 16 px on light and dark taskbars.
+- Right-click menu with Refresh (debounced, explains refusals in a notification), Open logs, About and Quit; Settings and Start with Windows are placeholders until milestone 7.
+- Theme tokens (`Theme.xaml`) with dark and light palettes that follow the Windows apps and taskbar settings.
+- Crash logging for UI-thread, app-domain and unobserved task exceptions.
+- `--render-icons <dir>` development switch that writes icon contact sheets.
 - Usage domain model (`UsageSnapshot`, `UsageWindow`, `OverageInfo`) with humanised window names, status thresholds and locked-window support.
 - Credential discovery from Claude Code's credentials file: read-only, honours `CLAUDE_CONFIG_DIR`, parses only the Claude OAuth section and never the MCP tokens, detects expiry.
 - OAuth usage provider sending the headers Claude Code sends, with defensive schema parsing (unknown windows still render, extra usage scaled from minor units) and a one-time redacted shape log.

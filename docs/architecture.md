@@ -150,7 +150,14 @@ sequenceDiagram
 
 ## Status
 
-Milestones 1 and 2 are delivered: solution layout, build settings, CI, `AppPaths`, the composition root with file
-logging, the usage domain, credential discovery, the OAuth usage provider, the polling state machine and the
-snapshot cache, verified against the live endpoint. The tray icon, flyout, JSONL analytics provider, aggregator,
-history store and charts arrive in milestones 3 to 7 and this document is updated with each of them.
+Milestones 1 to 3 are delivered: solution layout, build settings, CI, `AppPaths`, the composition root with file
+logging and crash logging, the usage domain, credential discovery, the OAuth usage provider, the polling state
+machine, the snapshot cache (verified against the live endpoint), theme tokens with dark and light palettes, and
+the generated tray icon with its context menu. The flyout, JSONL analytics provider, aggregator, history store and
+charts arrive in milestones 4 to 7 and this document is updated with each of them.
+
+## Tray icon pipeline
+
+`UsagePoller.StatusChanged` (background thread) → `TrayIconViewModel.Apply` on the dispatcher → `TrayIconState`
+(percent, status, stale) and tooltip → `TrayIconController.Redraw` → `TrayIconRenderer.Render` at the system DPI
+pixel size → `IconConverter.ToIcon` → `TaskbarIcon.Icon`. Theme and display changes re-enter at `Redraw`.

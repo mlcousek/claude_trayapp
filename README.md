@@ -10,12 +10,19 @@ local token/cost analytics.
 > **Unofficial tool.** Claude Usage Tray is a community project. It is not affiliated with, endorsed by, or supported
 > by Anthropic. It relies on an undocumented endpoint that can change or stop working at any time.
 
-> **Status: pre-release, under construction.** Milestones 1 and 2 of 8 are complete: solution scaffold, CI, docs,
-> and the data layer (credential discovery, the usage endpoint provider with backoff and cache, verified live). The
-> tray icon, flyout, local analytics and charts follow next. No release exists yet; see
-> [CHANGELOG.md](CHANGELOG.md) for progress.
+> **Status: pre-release, under construction.** Milestones 1 to 3 of 8 are complete: solution scaffold, CI, docs,
+> the data layer (credential discovery, the usage endpoint provider with backoff and cache, verified live) and the
+> generated tray icon with its context menu. The flyout, local analytics and charts follow next. No release exists
+> yet; see [CHANGELOG.md](CHANGELOG.md) for progress.
 
-<!-- Screenshot and GIF land in docs/screenshots/ with milestone 8. -->
+The tray icon in every state and size, on a dark and a light taskbar (native rendering with a 4x blow-up):
+
+<p>
+  <img src="docs/screenshots/tray-icons-dark.png" alt="Tray icon states on a dark taskbar: unknown, 12, 45, 72, 86 stale, 93 and full, at 16 to 32 pixels" width="380">
+  <img src="docs/screenshots/tray-icons-light.png" alt="The same tray icon states on a light taskbar" width="380">
+</p>
+
+<!-- The flyout screenshot lands here with milestone 8. -->
 
 ## What it shows
 
