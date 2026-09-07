@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Data;
 using ClaudeTrayApp.Interop;
 using ClaudeTrayApp.Theming;
 using ClaudeTrayApp.ViewModels;
@@ -80,14 +81,25 @@ public sealed class TrayIconController : IDisposable
         icon?.Dispose();
     }
 
+    /// <summary>Shows a Windows notification from the tray icon.</summary>
+    public void ShowNotification(TrayNotification notification)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        _icon.ShowNotification(notification.Title, notification.Message, notification.IsWarning ? NotificationIcon.Warning : NotificationIcon.Info);
+    }
+
     private static ContextMenu BuildMenu(TrayIconViewModel viewModel)
     {
-        var menu = new ContextMenu();
+        var menu = new ContextMenu { DataContext = viewModel };
         AutomationProperties.SetName(menu, "Claude Usage Tray menu");
         menu.Items.Add(new MenuItem { Header = "_Refresh", Command = viewModel.RefreshCommand });
-        menu.Items.Add(new MenuItem { Header = "_Settings", IsEnabled = false, ToolTip = "Coming in a later milestone" });
+        menu.Items.Add(new MenuItem { Header = "_Settings…", Command = viewModel.SettingsCommand });
         menu.Items.Add(new MenuItem { Header = "Open _logs", Command = viewModel.OpenLogsCommand });
-        menu.Items.Add(new MenuItem { Header = "Start with _Windows", IsEnabled = false, ToolTip = "Coming in a later milestone" });
+
+        var autostart = new MenuItem { Header = "Start with _Windows", IsCheckable = true };
+        BindingOperations.SetBinding(autostart, MenuItem.IsCheckedProperty, new Binding(nameof(TrayIconViewModel.StartWithWindows)) { Mode = BindingMode.TwoWay });
+        menu.Items.Add(autostart);
+        menu.Opened += (_, _) => viewModel.RefreshAutostart();
         menu.Items.Add(new Separator());
         menu.Items.Add(new MenuItem { Header = "_About", Command = viewModel.AboutCommand });
         menu.Items.Add(new MenuItem { Header = "_Quit", Command = viewModel.QuitCommand });
@@ -123,8 +135,7 @@ public sealed class TrayIconController : IDisposable
         }
     }
 
-    private void OnNotificationRequested(object? sender, string message) =>
-        _icon.ShowNotification("Claude Usage Tray", message, NotificationIcon.Info);
+    private void OnNotificationRequested(object? sender, TrayNotification notification) => ShowNotification(notification);
 
     private void OnThemeChanged(object? sender, EventArgs e) => Redraw();
 

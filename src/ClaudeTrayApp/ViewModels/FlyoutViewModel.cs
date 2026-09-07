@@ -9,6 +9,8 @@ using ClaudeTrayApp.Core.Analytics;
 using ClaudeTrayApp.Core.Diagnostics;
 using ClaudeTrayApp.Core.Domain;
 using ClaudeTrayApp.Core.Polling;
+using ClaudeTrayApp.Core.Pricing;
+using ClaudeTrayApp.Core.Settings;
 using ClaudeTrayApp.Core.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -30,6 +32,11 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
     private readonly Dispatcher _dispatcher;
     private readonly ILogger<FlyoutViewModel> _logger;
     private readonly ChartDataLoader _chartLoader;
+    private readonly SettingsStore _settings;
+    private readonly PricingProvider _pricing;
+    private readonly Action _openSettings;
+    private bool _showLocalAnalytics = true;
+    private bool _applyingSettings;
     private PollStatus _status;
     private AccountInfo _account = AccountInfo.Empty;
     private LocalAnalytics? _local;
@@ -144,24 +151,33 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
         LocalAnalyticsProvider analytics,
         AnalyticsCalculator calculator,
         IHistoryStore history,
+        SettingsStore settings,
+        PricingProvider pricing,
         TimeProvider clock,
         Dispatcher dispatcher,
+        Action openSettings,
         ILogger<FlyoutViewModel> logger)
     {
         _poller = poller;
         _accountSource = accountSource;
         _analytics = analytics;
         _calculator = calculator;
+        _settings = settings;
+        _pricing = pricing;
         _clock = clock;
         _dispatcher = dispatcher;
+        _openSettings = openSettings;
         _logger = logger;
         _status = poller.Status;
         _chartLoader = new ChartDataLoader(history, calculator, clock.LocalTimeZone);
         Charts = new ChartsViewModel(ChartPalette.FromApplication(), clock.LocalTimeZone);
+        ApplySettings(settings.Current);
         Charts.RangeChanged += OnChartRangeChanged;
 
         _poller.StatusChanged += OnStatusChanged;
         _analytics.DataChanged += OnAnalyticsChanged;
+        _settings.Changed += OnSettingsChanged;
+        _pricing.Changed += OnPricingChanged;
         Rebuild();
     }
 
@@ -260,7 +276,26 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
     {
         _poller.StatusChanged -= OnStatusChanged;
         _analytics.DataChanged -= OnAnalyticsChanged;
+        _settings.Changed -= OnSettingsChanged;
+        _pricing.Changed -= OnPricingChanged;
         Charts.RangeChanged -= OnChartRangeChanged;
+    }
+
+    /// <summary>Takes the flyout-related settings without writing anything back.</summary>
+    private void ApplySettings(AppSettings settings)
+    {
+        _applyingSettings = true;
+        try
+        {
+            IsEmailMasked = settings.MaskEmail;
+            _showLocalAnalytics = settings.ShowLocalAnalytics;
+            Charts.ShowDaily = settings.ShowLocalAnalytics;
+            Charts.RangeHours = settings.ChartRangeHours;
+        }
+        finally
+        {
+            _applyingSettings = false;
+        }
     }
 
     private static string Capitalize(string word) =>
@@ -285,9 +320,13 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
         LastUpdatedText = _status.LastSuccess is { } success
             ? (_status.IsStale ? "Cached, updated " : "Updated ") + RelativeTime.Format(success, now)
             : "No data yet";
-        SourcesText = aggregated.PercentagesAvailable
-            ? $"Percentages: {aggregated.PercentagesSource}; tokens: session logs"
-            : "Tokens: session logs; percentages unavailable";
+        SourcesText = (aggregated.PercentagesAvailable, _showLocalAnalytics) switch
+        {
+            (true, true) => $"Percentages: {aggregated.PercentagesSource}; tokens: session logs",
+            (true, false) => $"Percentages: {aggregated.PercentagesSource}",
+            (false, true) => "Tokens: session logs; percentages unavailable",
+            _ => "Percentages unavailable",
+        };
 
         UpdateHeader();
         RefreshCharts(force: false);
@@ -404,6 +443,18 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
 
     private void RebuildAnalytics(AggregatedUsage aggregated)
     {
+        if (!_showLocalAnalytics)
+        {
+            HasPace = false;
+            HasProjection = false;
+            HasToday = false;
+            HasProjects = false;
+            HasAnalyticsNote = false;
+            ModelRows.Clear();
+            ProjectRows.Clear();
+            return;
+        }
+
         var local = aggregated.Local;
         var block = local?.CurrentBlock;
         HasPace = block is not null;
@@ -550,7 +601,17 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
 
     private void ClearFeedback() => ShowFeedback(null);
 
-    partial void OnIsEmailMaskedChanged(bool value) => UpdateHeader();
+    partial void OnIsEmailMaskedChanged(bool value)
+    {
+        UpdateHeader();
+        if (!_applyingSettings && _settings.Current.MaskEmail != value)
+        {
+            _settings.Update(s => s with { MaskEmail = value });
+        }
+    }
+
+    [RelayCommand]
+    private void OpenSettings() => _openSettings();
 
     [RelayCommand]
     private void Refresh()
@@ -572,5 +633,20 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
 
     private void OnAnalyticsChanged(object? sender, EventArgs e) => _dispatcher.BeginInvoke(Rebuild);
 
-    private void OnChartRangeChanged(object? sender, EventArgs e) => RefreshCharts(force: true);
+    private void OnChartRangeChanged(object? sender, EventArgs e)
+    {
+        RefreshCharts(force: true);
+        if (!_applyingSettings && _settings.Current.ChartRangeHours != Charts.RangeHours)
+        {
+            _settings.Update(s => s with { ChartRangeHours = Charts.RangeHours });
+        }
+    }
+
+    private void OnSettingsChanged(object? sender, AppSettings settings) => _dispatcher.BeginInvoke(() =>
+    {
+        ApplySettings(settings);
+        Rebuild();
+    });
+
+    private void OnPricingChanged(object? sender, EventArgs e) => _dispatcher.BeginInvoke(Rebuild);
 }

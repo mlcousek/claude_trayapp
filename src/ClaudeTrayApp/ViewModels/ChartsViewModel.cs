@@ -90,6 +90,10 @@ public sealed partial class ChartsViewModel : ObservableObject
     [ObservableProperty]
     private bool _hasDaily;
 
+    /// <summary>False when the user hides local analytics: the daily token chart is one of them.</summary>
+    [ObservableProperty]
+    private bool _showDaily = true;
+
     [ObservableProperty]
     private IReadOnlyList<BarSeries> _dailySeries = [];
 
@@ -231,8 +235,18 @@ public sealed partial class ChartsViewModel : ObservableObject
         _daily = chart;
         DailyLabels = chart.Labels;
         DailySummary = chart.Summary;
-        HasDaily = chart.HasData;
+        HasDaily = chart.HasData && ShowDaily;
         RebuildDailySeries();
+    }
+
+    partial void OnShowDailyChanged(bool value)
+    {
+        HasDaily = value && _daily is { HasData: true };
+        HasAnyData = HasBlock || HasHistory || HasDaily;
+        if (!value && SelectedChart == ChartKind.Daily)
+        {
+            SelectedChart = HasBlock || !HasHistory ? ChartKind.Block : ChartKind.History;
+        }
     }
 
     partial void OnRangeHoursChanged(int value) => RangeChanged?.Invoke(this, EventArgs.Empty);

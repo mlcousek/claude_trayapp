@@ -336,9 +336,8 @@
                             Margin="6,0,0,0"
                             Style="{StaticResource FlyoutButton}"
                             Content="_Settings"
-                            IsEnabled="False"
-                            ToolTip="Settings arrive in a later milestone"
-                            AutomationProperties.Name="Settings, not available yet" />
+                            Command="{Binding OpenSettingsCommand}"
+                            AutomationProperties.Name="Open settings" />
                 </Grid>
             </Border>
         </StackPanel>

@@ -5,13 +5,19 @@ using System.Windows;
 using System.Windows.Threading;
 using ClaudeTrayApp.Core;
 using ClaudeTrayApp.Core.Diagnostics;
+using ClaudeTrayApp.Core.Notifications;
 using ClaudeTrayApp.Core.Polling;
+using ClaudeTrayApp.Core.Settings;
+using ClaudeTrayApp.Startup;
 using ClaudeTrayApp.Tray;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 
 namespace ClaudeTrayApp.ViewModels;
+
+/// <summary>A short message for the user, shown as a Windows notification from the tray icon.</summary>
+public sealed record TrayNotification(string Title, string Message, bool IsWarning);
 
 /// <summary>State behind the tray icon: what to draw, what the tooltip says, and the context-menu commands.</summary>
 public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
@@ -21,11 +27,16 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
 
     private readonly UsagePoller _poller;
     private readonly AppPaths _paths;
+    private readonly SettingsStore _settings;
+    private readonly ThresholdNotifier _notifier;
+    private readonly AutostartManager _autostart;
     private readonly TimeProvider _clock;
     private readonly Dispatcher _dispatcher;
+    private readonly Action _openSettings;
     private readonly Action _quit;
     private readonly string _version;
     private readonly ILogger<TrayIconViewModel> _logger;
+    private bool _loadingAutostart;
 
     [ObservableProperty]
     private TrayIconState _iconState = TrayIconState.Unknown;
@@ -33,41 +44,87 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _tooltip = "Claude Usage Tray: waiting for the first refresh";
 
+    [ObservableProperty]
+    private bool _startWithWindows;
+
     public TrayIconViewModel(
         UsagePoller poller,
         AppPaths paths,
+        SettingsStore settings,
+        ThresholdNotifier notifier,
+        AutostartManager autostart,
         TimeProvider clock,
         Dispatcher dispatcher,
+        Action openSettings,
         Action quit,
         string version,
         ILogger<TrayIconViewModel> logger)
     {
         _poller = poller;
         _paths = paths;
+        _settings = settings;
+        _notifier = notifier;
+        _autostart = autostart;
         _clock = clock;
         _dispatcher = dispatcher;
+        _openSettings = openSettings;
         _quit = quit;
         _version = version;
         _logger = logger;
 
         _poller.StatusChanged += OnStatusChanged;
+        _settings.Changed += OnSettingsChanged;
         Apply(_poller.Status);
+        RefreshAutostart();
     }
 
-    /// <summary>Raised when the user should see a short message (for example a refused refresh).</summary>
-    public event EventHandler<string>? NotificationRequested;
+    /// <summary>Raised when the user should see a short message: a refused refresh, a threshold crossed.</summary>
+    public event EventHandler<TrayNotification>? NotificationRequested;
 
-    /// <summary>Projects a poll status onto the icon state and tooltip. Must run on the UI thread.</summary>
+    /// <summary>Projects a poll status onto the icon state and tooltip, and announces crossed thresholds. Must run on the UI thread.</summary>
     public void Apply(PollStatus status)
     {
         ArgumentNullException.ThrowIfNull(status);
-        var primary = status.Snapshot?.PrimaryWindow;
+        var settings = _settings.Current;
+        var primary = status.Snapshot?.WindowFor(settings.TrayWindow);
         var stale = status.State is PollState.Idle or PollState.Stale or PollState.RateLimited or PollState.Unauthenticated;
+        var now = _clock.GetUtcNow();
 
         IconState = primary is null
             ? TrayIconState.Unknown with { IsStale = stale }
             : new TrayIconState(primary.UtilizationPercent, primary.Status, stale);
-        Tooltip = BuildTooltip(status, _clock.GetUtcNow());
+        Tooltip = BuildTooltip(status, now);
+
+        if (status.State == PollState.Ok && status.Snapshot is { } snapshot && settings.Notifications.Enabled)
+        {
+            foreach (var alert in _notifier.Evaluate(snapshot, settings.Notifications.Thresholds))
+            {
+                _logger.LogInformation("Threshold notification: {Window} at {Percent}% passed {Threshold}%", alert.WindowKey, Math.Round(alert.Percent), alert.Threshold);
+                NotificationRequested?.Invoke(this, new TrayNotification("Claude usage", FormatAlert(alert, now), IsWarning: true));
+            }
+        }
+    }
+
+    /// <summary>Re-reads the Run entry; the menu calls this when it opens because the settings window can change it too.</summary>
+    public void RefreshAutostart()
+    {
+        _loadingAutostart = true;
+        try
+        {
+            StartWithWindows = _autostart.IsEnabled();
+        }
+        finally
+        {
+            _loadingAutostart = false;
+        }
+    }
+
+    /// <summary>"5-hour usage is at 86%, past your 80% mark. Resets in 1h 53m."</summary>
+    internal static string FormatAlert(ThresholdAlert alert, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(alert);
+        var reset = alert.ResetsAt is { } at && at > now ? " Resets in " + UsageSnapshotFormatter.FormatDuration(at - now) + "." : string.Empty;
+        return string.Create(CultureInfo.InvariantCulture, $"{alert.WindowName} usage is at {Math.Round(alert.Percent)}%, past your {alert.Threshold}% mark.{reset}");
     }
 
     /// <summary>One line: the first window with its reset countdown, up to two more windows, then the state.</summary>
@@ -89,7 +146,25 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
         return text.Length <= TooltipLimit ? text : text[..(TooltipLimit - 1)] + "…";
     }
 
-    public void Dispose() => _poller.StatusChanged -= OnStatusChanged;
+    public void Dispose()
+    {
+        _poller.StatusChanged -= OnStatusChanged;
+        _settings.Changed -= OnSettingsChanged;
+    }
+
+    partial void OnStartWithWindowsChanged(bool value)
+    {
+        if (_loadingAutostart)
+        {
+            return;
+        }
+
+        if (!_autostart.TrySet(value, out var error))
+        {
+            NotificationRequested?.Invoke(this, new TrayNotification("Claude Usage Tray", error ?? "The startup entry could not be changed.", IsWarning: true));
+            RefreshAutostart();
+        }
+    }
 
     private static string Suffix(PollState state) => state switch
     {
@@ -109,8 +184,11 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
             return;
         }
 
-        NotificationRequested?.Invoke(this, reason ?? "Refresh is not possible right now.");
+        NotificationRequested?.Invoke(this, new TrayNotification("Claude Usage Tray", reason ?? "Refresh is not possible right now.", IsWarning: false));
     }
+
+    [RelayCommand]
+    private void Settings() => _openSettings();
 
     [RelayCommand]
     private void OpenLogs()
@@ -143,4 +221,6 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
     }
 
     private void OnStatusChanged(object? sender, PollStatus status) => _dispatcher.BeginInvoke(() => Apply(status));
+
+    private void OnSettingsChanged(object? sender, AppSettings settings) => _dispatcher.BeginInvoke(() => Apply(_poller.Status));
 }
