@@ -64,4 +64,59 @@ public class AppPathsTests
         Path.IsPathRooted(paths.RoamingRoot).ShouldBeTrue();
         Path.IsPathRooted(paths.ClaudeHome).ShouldBeTrue();
     }
+
+    [Fact]
+    public void FromEnvironment_prefers_rooted_profile_variables_over_the_known_folders()
+    {
+        var local = Path.GetFullPath(Path.Combine("fresh", "local"));
+        var roaming = Path.GetFullPath(Path.Combine("fresh", "roaming"));
+        var profile = Path.GetFullPath(Path.Combine("fresh", "profile"));
+        var variables = new Dictionary<string, string?>
+        {
+            ["LOCALAPPDATA"] = local,
+            ["APPDATA"] = roaming,
+            ["USERPROFILE"] = profile,
+        };
+
+        var paths = AppPaths.FromEnvironment(name => variables.GetValueOrDefault(name), _ => throw new InvalidOperationException("known folder consulted"));
+
+        paths.LocalRoot.ShouldBe(Path.Combine(local, "ClaudeTrayApp"));
+        paths.RoamingRoot.ShouldBe(Path.Combine(roaming, "ClaudeTrayApp"));
+        paths.ClaudeHome.ShouldBe(Path.Combine(profile, ".claude"));
+        paths.ClaudeConfigFile.ShouldBe(Path.Combine(profile, ".claude.json"));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("relative/path")]
+    public void FromEnvironment_falls_back_to_the_known_folders_when_a_variable_is_unusable(string? value)
+    {
+        var known = new Dictionary<Environment.SpecialFolder, string>
+        {
+            [Environment.SpecialFolder.LocalApplicationData] = Path.GetFullPath(Path.Combine("known", "local")),
+            [Environment.SpecialFolder.ApplicationData] = Path.GetFullPath(Path.Combine("known", "roaming")),
+            [Environment.SpecialFolder.UserProfile] = Path.GetFullPath(Path.Combine("known", "profile")),
+        };
+
+        var paths = AppPaths.FromEnvironment(name => name == AppPaths.ClaudeConfigDirVariable ? null : value, folder => known[folder]);
+
+        paths.LocalRoot.ShouldBe(Path.Combine(known[Environment.SpecialFolder.LocalApplicationData], "ClaudeTrayApp"));
+        paths.RoamingRoot.ShouldBe(Path.Combine(known[Environment.SpecialFolder.ApplicationData], "ClaudeTrayApp"));
+        paths.ClaudeHome.ShouldBe(Path.Combine(known[Environment.SpecialFolder.UserProfile], ".claude"));
+    }
+
+    [Fact]
+    public void FromEnvironment_still_honours_the_claude_config_dir_variable()
+    {
+        var custom = Path.GetFullPath(Path.Combine("elsewhere", "claude-home"));
+
+        var paths = AppPaths.FromEnvironment(
+            name => name == AppPaths.ClaudeConfigDirVariable ? custom : null,
+            _ => Path.GetFullPath("known"));
+
+        paths.ClaudeHome.ShouldBe(custom);
+        paths.ClaudeCredentialsFile.ShouldBe(Path.Combine(custom, ".credentials.json"));
+        paths.ClaudeConfigFile.ShouldBe(Path.Combine(custom, ".claude.json"));
+    }
 }

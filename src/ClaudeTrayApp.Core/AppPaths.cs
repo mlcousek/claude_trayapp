@@ -27,12 +27,24 @@ public sealed class AppPaths
         ClaudeConfigFile = Path.Combine(string.IsNullOrWhiteSpace(claudeConfigDirOverride) ? userProfile : claudeConfigDirOverride, ".claude.json");
     }
 
-    /// <summary>Builds the paths for the current user from well-known environment folders.</summary>
-    public static AppPaths FromEnvironment() => new(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.DoNotVerify),
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.DoNotVerify),
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify),
-        Environment.GetEnvironmentVariable(ClaudeConfigDirVariable));
+    /// <summary>
+    /// Builds the paths for the current user. <c>LOCALAPPDATA</c>, <c>APPDATA</c> and <c>USERPROFILE</c> win when the
+    /// process has them set to rooted paths (so a run can be pointed at a fresh profile); otherwise the shell's known
+    /// folders apply, which is what the variables normally hold anyway.
+    /// </summary>
+    public static AppPaths FromEnvironment() => FromEnvironment(Environment.GetEnvironmentVariable, KnownFolder);
+
+    /// <summary>Same as <see cref="FromEnvironment()"/> with the two lookups injected, for tests.</summary>
+    public static AppPaths FromEnvironment(Func<string, string?> variable, Func<Environment.SpecialFolder, string> knownFolder)
+    {
+        ArgumentNullException.ThrowIfNull(variable);
+        ArgumentNullException.ThrowIfNull(knownFolder);
+        return new AppPaths(
+            RootedOr(variable("LOCALAPPDATA"), () => knownFolder(Environment.SpecialFolder.LocalApplicationData)),
+            RootedOr(variable("APPDATA"), () => knownFolder(Environment.SpecialFolder.ApplicationData)),
+            RootedOr(variable("USERPROFILE"), () => knownFolder(Environment.SpecialFolder.UserProfile)),
+            variable(ClaudeConfigDirVariable));
+    }
 
     /// <summary>%LOCALAPPDATA%\ClaudeTrayApp: cache, history database and logs.</summary>
     public string LocalRoot { get; }
@@ -57,4 +69,10 @@ public sealed class AppPaths
     public string ClaudeCredentialsFile => Path.Combine(ClaudeHome, ".credentials.json");
 
     public string ClaudeProjectsDirectory => Path.Combine(ClaudeHome, "projects");
+
+    private static string KnownFolder(Environment.SpecialFolder folder) =>
+        Environment.GetFolderPath(folder, Environment.SpecialFolderOption.DoNotVerify);
+
+    private static string RootedOr(string? candidate, Func<string> fallback) =>
+        !string.IsNullOrWhiteSpace(candidate) && Path.IsPathRooted(candidate) ? candidate : fallback();
 }
