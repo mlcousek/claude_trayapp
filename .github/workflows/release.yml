@@ -1,0 +1,173 @@
+name: Release
+
+# Runs when a version tag is pushed (v0.1.0, v0.2.0-beta.1, ...). Builds and tests the tagged commit exactly like
+# CI, publishes the self-contained single-file exe for win-x64 and win-arm64 with the version taken from the tag,
+# zips each publish folder with pricing.json, LICENSE and a short README, writes SHA256SUMS.txt and creates the
+# GitHub release with the checksums, the CHANGELOG section and the generated notes in its body.
+#
+# Tagging procedure (single-developer repo, from a green main):
+#   git tag -a v0.1.0 -m "Claude Usage Tray 0.1.0"
+#   git push origin v0.1.0
+# Re-running the job for an existing release replaces its assets and notes instead of failing.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+
+jobs:
+  release:
+    name: Publish, package and release
+    # WPF only builds on Windows; win-arm64 cross-publishes from the x64 runner.
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up .NET (from global.json)
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Version from tag
+        id: version
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          if ($tag -notmatch '^v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$') {
+            throw "Tag '$tag' is not v<major>.<minor>.<patch>[-prerelease]; nothing released."
+          }
+          $version = $Matches[1]
+          $prerelease = if ($version.Contains('-')) { 'true' } else { 'false' }
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "prerelease=$prerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "Releasing $version from tag $tag (prerelease: $prerelease)"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build (Release, warnings as errors)
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build
+
+      - name: Publish win-x64
+        run: dotnet publish src/ClaudeTrayApp -c Release -r win-x64 -o artifacts/publish/win-x64 -p:Version=$env:VERSION
+
+      - name: Publish win-arm64
+        run: dotnet publish src/ClaudeTrayApp -c Release -r win-arm64 -o artifacts/publish/win-arm64 -p:Version=$env:VERSION
+
+      - name: Package zips
+        run: |
+          New-Item -ItemType Directory -Force artifacts/release | Out-Null
+          foreach ($rid in 'win-x64', 'win-arm64') {
+            $stage = "artifacts/stage/$rid"
+            New-Item -ItemType Directory -Force $stage | Out-Null
+            # Everything dotnet publish produced (the single-file exe and pricing.json), plus licence and README.
+            Copy-Item "artifacts/publish/$rid/*" $stage -Recurse
+            Copy-Item LICENSE "$stage/LICENSE.txt"
+            Copy-Item .github/release/README.txt "$stage/README.txt"
+            $zip = "artifacts/release/ClaudeUsageTray-$env:VERSION-$rid.zip"
+            Compress-Archive -Path "$stage/*" -DestinationPath $zip -CompressionLevel Optimal
+            $exe = Get-Item "$stage/ClaudeTrayApp.exe"
+            Write-Host ("{0}: exe {1:N0} bytes, file version {2}, zip {3:N0} bytes" -f $rid, $exe.Length, $exe.VersionInfo.FileVersion, (Get-Item $zip).Length)
+            Get-ChildItem $stage | ForEach-Object { Write-Host ("  {0,-20} {1,12:N0} bytes" -f $_.Name, $_.Length) }
+          }
+
+      - name: Write SHA256SUMS.txt
+        run: |
+          $lines = Get-ChildItem artifacts/release/*.zip | Sort-Object Name | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.Name
+          }
+          $path = Join-Path $PWD.Path 'artifacts/release/SHA256SUMS.txt'
+          [System.IO.File]::WriteAllText($path, (($lines -join "`n") + "`n"))
+          Get-Content $path
+
+      - name: Compose release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          $tag = $env:GITHUB_REF_NAME
+          $version = $env:VERSION
+
+          # The CHANGELOG section for this version: from its heading up to the next "## [" heading, without the
+          # "[x.y.z]: url" link definitions that follow the last section.
+          $changelog = Get-Content CHANGELOG.md -Raw
+          $pattern = '(?ms)^## \[' + [regex]::Escape($version) + '\][^\n]*\n(.*?)(?=^## \[|\z)'
+          $match = [regex]::Match($changelog, $pattern)
+          $changes = if ($match.Success) { (($match.Groups[1].Value -split "`n") | Where-Object { $_ -notmatch '^\[[^\]]+\]:\s*\S' }) -join "`n" } else { '' }
+          $changes = $changes.Trim()
+          if (-not $changes) { $changes = "_CHANGELOG.md has no section for $version yet._" }
+
+          # GitHub's generated notes (pull requests since the previous tag plus the compare link); optional.
+          $generated = ''
+          try {
+            $generated = (gh api "repos/$env:GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$tag" --jq .body 2>$null) -join "`n"
+            if ($LASTEXITCODE -ne 0) { $generated = '' }
+          } catch { $generated = '' }
+          if (-not $generated.Trim()) { $generated = "**Full Changelog**: https://github.com/$env:GITHUB_REPOSITORY/commits/$tag" }
+
+          $sums = (Get-Content artifacts/release/SHA256SUMS.txt -Raw).TrimEnd()
+          $notes = (Get-Content .github/release/notes-template.md -Raw).
+            Replace('{{VERSION}}', $version).
+            Replace('{{SHA256SUMS}}', $sums).
+            Replace('{{CHANGELOG}}', $changes).
+            Replace('{{GENERATED_NOTES}}', $generated.Trim())
+          $path = Join-Path $PWD.Path 'artifacts/notes.md'
+          [System.IO.File]::WriteAllText($path, $notes)
+          Get-Content $path
+
+      - name: Upload zips as a workflow artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-${{ env.VERSION }}
+          path: |
+            artifacts/release/*.zip
+            artifacts/release/SHA256SUMS.txt
+            artifacts/notes.md
+          if-no-files-found: ignore
+
+      - name: Create or update the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          $tag = $env:GITHUB_REF_NAME
+          $title = "Claude Usage Tray $env:VERSION"
+          $assets = @(Get-ChildItem artifacts/release/*.zip | Sort-Object Name | ForEach-Object FullName) + @((Get-Item artifacts/release/SHA256SUMS.txt).FullName)
+
+          gh release view $tag --json tagName 1>$null 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag exists; replacing its assets and notes."
+            gh release upload $tag @assets --clobber
+            if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit code $LASTEXITCODE" }
+            $edit = @('release', 'edit', $tag, '--title', $title, '--notes-file', 'artifacts/notes.md')
+            if ($env:PRERELEASE -eq 'true') { $edit += '--prerelease' }
+            gh @edit
+            if ($LASTEXITCODE -ne 0) { throw "gh release edit failed with exit code $LASTEXITCODE" }
+          } else {
+            $create = @('release', 'create', $tag, '--verify-tag', '--title', $title, '--notes-file', 'artifacts/notes.md')
+            if ($env:PRERELEASE -eq 'true') { $create += '--prerelease' }
+            gh @create @assets
+            if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE" }
+          }
+          gh release view $tag --json url,assets --jq '.url, (.assets[] | "\(.name) \(.size) bytes")'
