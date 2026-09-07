@@ -105,4 +105,27 @@ public sealed class JsonlScannerTests : IDisposable
 
         scanner.Scan(TestContext.Current.CancellationToken).ShouldBe(ScanResult.Empty);
     }
+
+    [Fact]
+    public void A_locked_file_is_skipped_without_failing_the_scan_and_the_other_file_still_scans()
+    {
+        var lockedPath = Path.Combine(_root, "projects", "C--work-alpha", "locked.jsonl");
+        File.Copy(Path.Combine(AppContext.BaseDirectory, "Fixtures", "sessions", "sample.jsonl"), lockedPath);
+
+        ScanResult result;
+        using (new FileStream(lockedPath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            // The scanner opens with FileShare.ReadWrite | FileShare.Delete, which a FileShare.None handle held
+            // here defeats, so this reproduces a real "another process has the log open exclusively" scan.
+            result = Scanner().Scan(TestContext.Current.CancellationToken);
+        }
+
+        result.Files.ShouldBe(2);
+        result.SkippedFiles.ShouldBe(1);
+        result.ChangedFiles.ShouldBe(1);
+        // Only session.jsonl (the unlocked fixture copy from the constructor) contributed events.
+        result.NewEvents.ShouldBe(3);
+        _store.CountEvents().ShouldBe(3);
+        _store.GetScanState(lockedPath).ShouldBeNull();
+    }
 }
