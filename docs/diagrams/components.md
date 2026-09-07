@@ -6,18 +6,20 @@ Projects and their dependency direction. Core has no UI dependency; `CoreArchite
 flowchart TB
     APP["ClaudeTrayApp (WPF, net9.0-windows)<br/>composition root, views, viewmodels, Theme.xaml"]
     CORE["ClaudeTrayApp.Core (net9.0)<br/>domain, providers, aggregator, parsing, pricing, history"]
-    TESTS["ClaudeTrayApp.Core.Tests (xunit.v3)<br/>fixtures with fake tokens only"]
+    TESTS["ClaudeTrayApp.Core.Tests (xunit.v3, net9.0)<br/>fixtures with fake tokens only"]
+    APPTESTS["ClaudeTrayApp.Tests (xunit.v3, net9.0-windows)<br/>tray state, renderer pixels, chart builders, viewmodels"]
 
     UI["WPF, H.NotifyIcon.Wpf, CommunityToolkit.Mvvm"]
     BCL["Microsoft.Extensions.*, Microsoft.Data.Sqlite,<br/>System.Text.Json"]
 
     APP --> CORE
     TESTS --> CORE
+    APPTESTS --> APP
     APP --> UI
     APP --> BCL
     CORE --> BCL
 
     classDef forbidden stroke-dasharray: 5 5
     CORE -. "never" .-> UI
-    linkStyle 5 stroke-dasharray: 5 5
+    linkStyle 6 stroke-dasharray: 5 5
 ```

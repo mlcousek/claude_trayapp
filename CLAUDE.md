@@ -22,12 +22,17 @@ dotnet run --project src/ClaudeTrayApp -- --probe    # one live fetch, redacted 
 dotnet run --project src/ClaudeTrayApp -- --render-icons out/icons   # tray icon contact sheets (PNG) for a legibility check
 dotnet run --project src/ClaudeTrayApp -- --capture-flyout out/flyout.png   # opens the flyout after the first poll, screenshots it, exits
 dotnet run --project src/ClaudeTrayApp -- --capture-settings out/settings.png   # opens the settings window, screenshots it, exits
-dotnet publish src/ClaudeTrayApp -c Release -r win-x64 -o artifacts/publish/win-x64
-dotnet publish src/ClaudeTrayApp -c Release -r win-arm64 -o artifacts/publish/win-arm64
+dotnet publish src/ClaudeTrayApp -c Release -r win-x64 -o artifacts/publish/win-x64 -p:Version=0.1.0
+dotnet publish src/ClaudeTrayApp -c Release -r win-arm64 -o artifacts/publish/win-arm64 -p:Version=0.1.0
+git tag -a v0.1.0 -m "Claude Usage Tray 0.1.0" && git push origin v0.1.0   # release: see the Release section
+gh run watch <run id> --exit-status                                       # CI or release run; ids from `gh run list`
+gh release view v0.1.0                                                    # both zips and SHA256SUMS.txt attached
 ```
 
 Run from the repo root: `global.json` pins the 9.0.3xx SDK band because dev machines may default to a newer preview SDK.
-Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifacts/` is git-ignored.
+Publish output is a single self-contained, ReadyToRun exe (about 65 MB on x64, 61 MB on Arm64) plus `pricing.json`;
+`artifacts/` is git-ignored. Publish locally before tagging: CI builds framework-dependent and never runs the
+single-file analysers, which are errors in Release (IL3000 broke the publish once without CI noticing).
 
 ## Layout
 
@@ -36,7 +41,7 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 - `src/ClaudeTrayApp.Core/` `Domain/` (snapshot, windows, humaniser), `Credentials/`, `Providers/` (OAuth endpoint, parser), `Polling/` (state machine, poller), `Cache/`, `Analytics/` (JSONL line parser, incremental scanner, provider with watcher, calculator), `Storage/` (SQLite store: events, scan offsets, history), `Pricing/` (`pricing.json` loader, table, reloadable provider), `History/` (recorder, retention), `Aggregation/`, `Account/`, `Settings/` (settings model and hot-reloading store), `Notifications/` (threshold notifier), `Security/` (redactor), `Diagnostics/`, `ClaudeCode/` (version detection). No UI references, ever.
 - `tests/ClaudeTrayApp.Core.Tests/` xunit.v3 + Shouldly + NSubstitute. Fixture files with fake tokens and synthetic sessions only.
 - `docs/` `architecture.md`, `data-sources.md`, `diagrams/` (Mermaid sources), `screenshots/`.
-- `.github/` `workflows/ci.yml` (build, test, format), `workflows/release.yml` (M8), Dependabot, issue templates.
+- `.github/` `workflows/ci.yml` (build, test, format), `workflows/release.yml` (tag `v*`: publish both RIDs, zip, `SHA256SUMS.txt`, GitHub release), `release/` (the zip's `README.txt` and the release-notes template), Dependabot, issue templates.
 - `Directory.Build.props` shared MSBuild settings. `Directory.Packages.props` every package version. `global.json` SDK pin.
 
 ## Architecture
@@ -72,6 +77,14 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 - Accessibility is part of done: keyboard navigation, `AutomationProperties` on every control, contrast at least 4.5:1, never colour alone.
 - Settings apply the moment they change; the settings window holds no unsaved state and only `SettingsStore` writes settings.json. Start with Windows lives in the registry, not in the file.
 
+## Release
+
+- The version comes from the tag: `vX.Y.Z[-pre]` becomes `dotnet publish -p:Version=X.Y.Z[-pre]`, so the assembly and file version, the About dialog and the first log line all report the tag's version. `VersionPrefix` in `Directory.Build.props` is only what local builds report; bump it together with the CHANGELOG so `dotnet run` and the next tag agree.
+- Procedure: `main` green (`gh run watch`), `CHANGELOG.md` has a `## [X.Y.Z] - date` section (the workflow copies it into the release body) and its compare links updated, `dotnet publish` passes locally, then `git tag -a vX.Y.Z -m "Claude Usage Tray X.Y.Z"` and `git push origin vX.Y.Z`. Watch the run with `gh run watch <id> --exit-status` and check `gh release view vX.Y.Z` for both zips and `SHA256SUMS.txt`.
+- The workflow builds and tests like CI, publishes win-x64 and win-arm64, zips each publish folder with `LICENSE.txt` and `.github/release/README.txt` as `ClaudeUsageTray-X.Y.Z-win-<arch>.zip`, writes `SHA256SUMS.txt` (`sha256sum` format, lowercase) and creates the release from `.github/release/notes-template.md` (disclaimer, checksums, CHANGELOG section, GitHub's generated notes) with `gh` from the runner under `contents: write`. A tag that is not `v<major>.<minor>.<patch>[-prerelease]` fails the first step; a prerelease suffix marks the release as a pre-release.
+- A failed run can be re-run, or the tag deleted and re-created after a fix on `main`; the workflow replaces the assets and notes of an existing release instead of failing. Never delete a tag someone may already have fetched for anything but a broken release.
+- The exe is unsigned; SmartScreen may prompt once. Code signing and winget are out of scope until asked for.
+
 ## Known fragilities
 
 - `GET https://api.anthropic.com/api/oauth/usage` is undocumented. Its shape can change and it rate-limits aggressively. The `User-Agent: claude-code/<version>` header matters; without it requests land in a throttled bucket.
@@ -84,6 +97,8 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 - H.NotifyIcon.Wpf 2.4 dropped net9.0-windows; stay on 2.3.x (Dependabot is told so). Its `IconSource` path rejects `RenderTargetBitmap`, so the tray icon is converted to a `System.Drawing.Icon` by `IconConverter` and set through `TaskbarIcon.Icon`.
 - The tray icon is rendered at the system DPI (16/20/24/32 px). Per-monitor DPI for the taskbar is not tracked; a DPI change triggers a redraw through `SystemEvents.DisplaySettingsChanged`.
 - The Run entry points at `Environment.ProcessPath`; after the executable moves, Start with Windows reads as off until toggled again. Notifications use H.NotifyIcon's `ShowNotification`, which Windows may suppress under Focus assist.
+- Single-file publish runs the IL3000 family of analysers with warnings as errors: `Assembly.Location` is empty in a single-file app and fails the publish. Use `Environment.ProcessPath` or `AppContext.BaseDirectory`.
+- `Environment.GetFolderPath` ignores the `LOCALAPPDATA`, `APPDATA` and `USERPROFILE` variables (it asks the shell). `AppPaths.FromEnvironment` reads the variables first when they hold rooted paths, so a run can be pointed at a fresh profile for testing; that is how the not-signed-in, expired-token and offline states were verified against the published exe.
 
 ## Before you start
 
@@ -94,4 +109,4 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 
 ## Milestones
 
-M1 scaffold (done) · M2 core domain, OAuth provider, cache, backoff (done, live probe verified 2026-09-07) · M3 tray icon (done) · M4 flyout (done) · M5 JSONL analytics, history, aggregation (done) · M6 charts (done) · M7 settings, autostart, notifications, single instance (done) · M8 release pipeline, docs, v0.1.0
+M1 scaffold (done) · M2 core domain, OAuth provider, cache, backoff (done, live probe verified 2026-09-07) · M3 tray icon (done) · M4 flyout (done) · M5 JSONL analytics, history, aggregation (done) · M6 charts (done) · M7 settings, autostart, notifications, single instance (done) · M8 release pipeline, docs, v0.1.0 (done, released 2026-09-07)

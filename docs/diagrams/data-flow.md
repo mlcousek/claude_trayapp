@@ -1,6 +1,6 @@
 # Data flow
 
-Credential discovery feeds the OAuth provider; Claude Code session logs feed the local analytics provider. The aggregator merges both, persists to cache and history, and the tray icon and flyout render from the merged result.
+Credential discovery feeds the OAuth provider, whose poller writes every fresh snapshot to the cache and, through the history recorder, to `history.db`. Claude Code session logs feed the local analytics provider, which stores deduplicated usage events and scan offsets in the same database; the calculator prices them on demand. The aggregator merges the two halves for the view models, and the tray icon and flyout render from the merged result.
 
 ```mermaid
 flowchart LR
@@ -11,10 +11,11 @@ flowchart LR
     end
 
     subgraph core [ClaudeTrayApp.Core]
-        OAUTH["OAuth usage provider<br/>GET /api/oauth/usage<br/>300 s poll, 180 s floor, backoff on 429"]
+        OAUTH["OAuth usage provider + poller<br/>GET /api/oauth/usage<br/>300 s poll, 180 s floor, backoff on 429"]
         LOCAL["JSONL analytics provider<br/>incremental scan, dedupe by message id"]
+        CALC["AnalyticsCalculator<br/>today, top projects, 5-hour block, priced"]
         AGG["UsageAggregator<br/>percentages from OAuth (authoritative)<br/>tokens, cost, burn rate from JSONL"]
-        HIST[("History store<br/>SQLite: snapshots, daily rollups, scan offsets")]
+        HIST[("history.db<br/>SQLite: snapshot series, usage events, scan offsets")]
         CACHE[("cache.json<br/>last snapshot, no token")]
     end
 
@@ -26,12 +27,14 @@ flowchart LR
 
     CRED --> OAUTH
     JSONL --> LOCAL
-    PRICE --> LOCAL
+    PRICE --> CALC
+    OAUTH -->|every fresh snapshot| HIST
+    OAUTH --> CACHE
+    CACHE -.->|on launch| OAUTH
+    LOCAL -->|events, offsets| HIST
+    HIST --> CALC
     OAUTH -->|UsageSnapshot| AGG
-    LOCAL -->|LocalAnalytics| AGG
-    AGG --> HIST
-    AGG --> CACHE
-    CACHE -.->|on launch| AGG
+    CALC -->|LocalAnalytics| AGG
     AGG --> VM
     HIST -->|chart series| VM
     VM --> TRAY

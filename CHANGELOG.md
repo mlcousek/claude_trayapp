@@ -6,8 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-07
+
+First release. Everything below is new in this version.
+
 ### Added
 
+- Release workflow (`.github/workflows/release.yml`) on `v*` tags: builds and tests the tagged commit, publishes the self-contained single-file exe for win-x64 and win-arm64 with the version taken from the tag, zips each with `pricing.json`, `LICENSE.txt` and a short `README.txt` as `ClaudeUsageTray-<version>-win-<arch>.zip`, writes `SHA256SUMS.txt` and creates the GitHub release with the checksums, this file's section for the version and the generated notes in its body. A re-run for an existing release replaces its assets and notes.
 - Settings window (tray menu, or the Settings button in the flyout) backed by `%APPDATA%\ClaudeTrayApp\settings.json`, written with defaults on first run and hot-reloaded: poll interval (floor 180 s, applied to the wait in progress), the window shown in the tray icon, history chart range, history retention with a Clear history action, threshold notifications (off by default, each threshold once per window and period), show or hide local analytics, mask email, theme override, pricing file path. A file that does not parse is left untouched and reported.
 - Start with Windows: an opt-in, per-user Run entry, toggled from the tray menu (checkable) or the Settings window.
 - One instance per session: a second launch opens the running instance's flyout and exits.
@@ -40,8 +45,14 @@ All notable changes to this project are documented here. The format follows
 - CI workflow (build, test, format check on Windows), Dependabot, issue templates.
 - Documentation: `CLAUDE.md`, `docs/architecture.md`, `docs/data-sources.md`, Mermaid diagrams.
 
+### Changed
+
+- `AppPaths` honours `LOCALAPPDATA`, `APPDATA` and `USERPROFILE` when the process has them set to rooted paths, falling back to the shell's known folders otherwise, so a run can be pointed at a fresh profile (used to verify the not-signed-in, expired-token and offline states against the published exe).
+
 ### Fixed
 
+- Single-file publish failed with IL3000: the Start with Windows wiring fell back to `Assembly.Location`, which is empty in a single-file app. It now falls back to the exe next to `AppContext.BaseDirectory`.
 - Core awaits use `ConfigureAwait(false)` and the host starts and stops off the UI thread, so quitting no longer waits five seconds for the polling loop.
 
-[Unreleased]: https://github.com/mlcousek/claude_trayapp/compare/0c88ac1...HEAD
+[Unreleased]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/mlcousek/claude_trayapp/releases/tag/v0.1.0

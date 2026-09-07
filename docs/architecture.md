@@ -9,7 +9,7 @@ arithmetic lives in `ClaudeTrayApp.Core`; the WPF project only composes, binds a
 |---|---|---|
 | Providers | Core | Turn a data source into a `UsageSnapshot` (OAuth endpoint) or local analytics (JSONL logs). Know about transport, never about UI. |
 | Aggregator | Core | Merge provider outputs, label the source of every field, decide the stale and unavailable states. Never fabricates a percentage. |
-| History store | Core | SQLite time series of snapshots and daily token/cost rollups, plus JSONL scan offsets and retention pruning. |
+| History store | Core | SQLite time series of snapshots, the deduplicated usage events from the session logs (daily and per-model totals are SQL aggregates over them), JSONL scan offsets and retention pruning. |
 | ViewModels | App | Observable adapters over aggregated data via CommunityToolkit.Mvvm source generators. Countdown text and number formatting live here. |
 | Views | App | XAML bound to viewmodels. Colours, brushes and fonts come from `Theme.xaml` tokens only. |
 
@@ -18,13 +18,15 @@ H.NotifyIcon; `tests/ClaudeTrayApp.Core.Tests/CoreArchitectureTests.cs` fails th
 
 ## Runtime folders
 
-All paths are resolved by `AppPaths` from environment folders. Nothing is hardcoded to a user, and
+All paths are resolved by `AppPaths` from the environment: `LOCALAPPDATA`, `APPDATA` and `USERPROFILE` when the
+process has them set to rooted paths, the shell's known folders otherwise (`Environment.GetFolderPath` ignores the
+variables, so a run pointed at a fresh profile needs this order). Nothing is hardcoded to a user, and
 `CLAUDE_CONFIG_DIR` relocates the Claude Code home exactly as it does for Claude Code.
 
 | Path | Content |
 |---|---|
 | `%LOCALAPPDATA%\ClaudeTrayApp\cache.json` | Last successful snapshot. Never contains a token. |
-| `%LOCALAPPDATA%\ClaudeTrayApp\history.db` | SQLite history, daily rollups, JSONL scan offsets. |
+| `%LOCALAPPDATA%\ClaudeTrayApp\history.db` | SQLite: snapshot series per window, deduplicated usage events, JSONL scan offsets. |
 | `%LOCALAPPDATA%\ClaudeTrayApp\logs\` | Rolling daily logs, seven days, five MB each. Tokens redacted. |
 | `%APPDATA%\ClaudeTrayApp\settings.json` | User settings, hot-reloaded. |
 | `%USERPROFILE%\.claude\` | Claude Code home. Read-only for this app. |
@@ -45,10 +47,11 @@ flowchart LR
     end
 
     subgraph core [ClaudeTrayApp.Core]
-        OAUTH["OAuth usage provider<br/>GET /api/oauth/usage<br/>300 s poll, 180 s floor, backoff on 429"]
+        OAUTH["OAuth usage provider + poller<br/>GET /api/oauth/usage<br/>300 s poll, 180 s floor, backoff on 429"]
         LOCAL["JSONL analytics provider<br/>incremental scan, dedupe by message id"]
+        CALC["AnalyticsCalculator<br/>today, top projects, 5-hour block, priced"]
         AGG["UsageAggregator<br/>percentages from OAuth (authoritative)<br/>tokens, cost, burn rate from JSONL"]
-        HIST[("History store<br/>SQLite: snapshots, daily rollups, scan offsets")]
+        HIST[("history.db<br/>SQLite: snapshot series, usage events, scan offsets")]
         CACHE[("cache.json<br/>last snapshot, no token")]
     end
 
@@ -60,12 +63,14 @@ flowchart LR
 
     CRED --> OAUTH
     JSONL --> LOCAL
-    PRICE --> LOCAL
+    PRICE --> CALC
+    OAUTH -->|every fresh snapshot| HIST
+    OAUTH --> CACHE
+    CACHE -.->|on launch| OAUTH
+    LOCAL -->|events, offsets| HIST
+    HIST --> CALC
     OAUTH -->|UsageSnapshot| AGG
-    LOCAL -->|LocalAnalytics| AGG
-    AGG --> HIST
-    AGG --> CACHE
-    CACHE -.->|on launch| AGG
+    CALC -->|LocalAnalytics| AGG
     AGG --> VM
     HIST -->|chart series| VM
     VM --> TRAY
@@ -100,20 +105,22 @@ stateDiagram-v2
 flowchart TB
     APP["ClaudeTrayApp (WPF, net9.0-windows)<br/>composition root, views, viewmodels, Theme.xaml"]
     CORE["ClaudeTrayApp.Core (net9.0)<br/>domain, providers, aggregator, parsing, pricing, history"]
-    TESTS["ClaudeTrayApp.Core.Tests (xunit.v3)<br/>fixtures with fake tokens only"]
+    TESTS["ClaudeTrayApp.Core.Tests (xunit.v3, net9.0)<br/>fixtures with fake tokens only"]
+    APPTESTS["ClaudeTrayApp.Tests (xunit.v3, net9.0-windows)<br/>tray state, renderer pixels, chart builders, viewmodels"]
 
     UI["WPF, H.NotifyIcon.Wpf, CommunityToolkit.Mvvm"]
     BCL["Microsoft.Extensions.*, Microsoft.Data.Sqlite,<br/>System.Text.Json"]
 
     APP --> CORE
     TESTS --> CORE
+    APPTESTS --> APP
     APP --> UI
     APP --> BCL
     CORE --> BCL
 
     classDef forbidden stroke-dasharray: 5 5
     CORE -. "never" .-> UI
-    linkStyle 5 stroke-dasharray: 5 5
+    linkStyle 6 stroke-dasharray: 5 5
 ```
 
 ### Launch sequence
@@ -153,12 +160,26 @@ sequenceDiagram
 
 ## Status
 
-Milestones 1 to 7 are delivered: solution layout, build settings, CI, `AppPaths`, the composition root with file
-logging and crash logging, the usage domain, credential discovery, the OAuth usage provider, the polling state
-machine, the snapshot cache (verified against the live endpoint), theme tokens with dark and light palettes, the
-generated tray icon with its context menu, the flyout, the local analytics pipeline with the SQLite history store
-and the aggregator, the charts, and settings with threshold notifications, autostart and single instance. The
-release pipeline arrives in milestone 8.
+All eight milestones are delivered and v0.1.0 (2026-09-07) is the first release: solution layout, build settings,
+CI, `AppPaths`, the composition root with file logging and crash logging, the usage domain, credential discovery,
+the OAuth usage provider, the polling state machine, the snapshot cache (verified against the live endpoint), theme
+tokens with dark and light palettes, the generated tray icon with its context menu, the flyout, the local analytics
+pipeline with the SQLite history store and the aggregator, the charts, settings with threshold notifications,
+autostart and single instance, and the release pipeline below. Later versions are cut by pushing a `v*` tag.
+
+## Release pipeline
+
+`.github/workflows/release.yml` runs on a pushed `v*` tag on a Windows runner: the same pinned checkout and .NET
+setup as CI, restore, build with warnings as errors, tests, then `dotnet publish` for win-x64 and win-arm64 with
+`-p:Version=<tag without the v>`, so the assembly and file version, the About dialog and the first log line carry
+the tag's version (a tag that is not `v<major>.<minor>.<patch>[-prerelease]` fails the first step). Each publish
+folder (the single-file, self-contained, ReadyToRun, untrimmed exe: about 65 MB on x64 and 61 MB on Arm64, plus
+`pricing.json`) is zipped with `LICENSE.txt` and `.github/release/README.txt` as
+`ClaudeUsageTray-<version>-win-<arch>.zip`, and `SHA256SUMS.txt` lists both in `sha256sum` format. The release body
+is `.github/release/notes-template.md` with the disclaimer, the checksums, the CHANGELOG section for the version
+and GitHub's generated notes filled in; `gh` from the runner (`contents: write`) creates the release with the three
+files attached, or replaces the assets and notes of an existing release when the job is re-run. The zips are also
+kept as a workflow artifact. The exe is not code-signed.
 
 ## Local analytics pipeline
 

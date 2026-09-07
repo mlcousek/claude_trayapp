@@ -10,11 +10,12 @@ local token/cost analytics.
 > **Unofficial tool.** Claude Usage Tray is a community project. It is not affiliated with, endorsed by, or supported
 > by Anthropic. It relies on an undocumented endpoint that can change or stop working at any time.
 
-> **Status: pre-release, under construction.** Milestones 1 to 7 of 8 are complete: solution scaffold, CI, docs,
-> the data layer (credential discovery, the usage endpoint provider with backoff and cache, verified live), the
-> generated tray icon with its context menu, the flyout, local analytics from the session logs with history, the
-> charts, and settings with notifications, autostart and single instance. The release pipeline follows next. No
-> release exists yet; see [CHANGELOG.md](CHANGELOG.md) for progress.
+> **Status: all eight milestones complete, first release v0.1.0.** Solution scaffold, CI, docs, the data layer
+> (credential discovery, the usage endpoint provider with backoff and cache, verified live), the generated tray icon
+> with its context menu, the flyout, local analytics from the session logs with history, the charts, settings with
+> notifications, autostart and single instance, and the release pipeline. Downloads are on the
+> [Releases page](https://github.com/mlcousek/claude_trayapp/releases); see [CHANGELOG.md](CHANGELOG.md) for what
+> each version contains.
 
 <p>
   <img src="docs/screenshots/flyout-dark.png" alt="The flyout: a large ring showing the 5-hour window, a plain-language status and the reset countdown; a pace line with tokens this block, tokens per hour and the API-equivalent cost; compact rows for the 7-day window and a codename window; extra usage; a Today block with tokens and cost; a Charts section with a This block, History and Daily picker showing the current block's recorded percentages, a dashed projection and the projected limit marked; footer naming the sources with Refresh and Settings" width="352">
@@ -31,8 +32,9 @@ The tray icon in every state and size, on a dark and a light taskbar (native ren
 
 ## What it shows
 
-- **Tray icon.** A ring-arc progress indicator around a compact numeral for the window you choose, colour-coded green
-  to amber to red, redrawn live and legible at 16 px on light and dark taskbars. The tooltip is a one-line summary.
+- **Tray icon.** A ring-arc progress indicator around a compact numeral for the window you choose, coloured in the
+  Claude accent (terracotta) while there is headroom and turning amber, then red, as the window fills; redrawn live
+  and legible at 16 px on light and dark taskbars. The tooltip is a one-line summary.
 - **Flyout (left-click).** Plan tier and masked account email; the 5-hour window as a large ring with a sparkline
   of the block so far; one compact row per other window with percent, thin bar, sparkline and "resets in 1h 26m";
   extra-usage balance when present; burn rate and projection for the current five-hour block; today's tokens and
@@ -53,10 +55,29 @@ The tray icon in every state and size, on a dark and a light taskbar (native ren
 
 ## Install
 
-1. Download `ClaudeUsageTray-<version>-win-x64.zip` (or `win-arm64`) from the Releases page (available from v0.1.0).
-2. Compare the SHA256 with the checksum listed in the release notes.
-3. Unzip anywhere and run `ClaudeTrayApp.exe`. There is no installer and no admin prompt.
+1. Download the zip for your machine from the [Releases page](https://github.com/mlcousek/claude_trayapp/releases):
+   `ClaudeUsageTray-<version>-win-x64.zip` for x64 or `ClaudeUsageTray-<version>-win-arm64.zip` for Arm64, for
+   example `ClaudeUsageTray-0.1.0-win-x64.zip`.
+2. Verify the download. Every release lists the SHA256 of each zip in its notes and attaches the same list as
+   `SHA256SUMS.txt`. Compute yours and compare:
+
+   ```powershell
+   Get-FileHash .\ClaudeUsageTray-0.1.0-win-x64.zip -Algorithm SHA256
+   ```
+
+   or, in Command Prompt:
+
+   ```bat
+   certutil -hashfile ClaudeUsageTray-0.1.0-win-x64.zip SHA256
+   ```
+
+3. Unzip anywhere and run `ClaudeTrayApp.exe`. The zip holds the app (one self-contained exe), `pricing.json`,
+   `LICENSE.txt` and a short `README.txt`; keep the exe and `pricing.json` together. There is no installer and no
+   admin prompt. The exe is not code-signed, so SmartScreen may ask once: choose **More info**, then **Run anyway**.
 4. Optional: right-click the tray icon and choose **Start with Windows**.
+
+Each release is built by the [release workflow](.github/workflows/release.yml) from the tagged commit; the same
+zips are attached to the workflow run as an artifact.
 
 From source (needs the .NET 9 SDK):
 
@@ -150,10 +171,11 @@ flowchart LR
     end
 
     subgraph core [ClaudeTrayApp.Core]
-        OAUTH["OAuth usage provider<br/>GET /api/oauth/usage<br/>300 s poll, 180 s floor, backoff on 429"]
+        OAUTH["OAuth usage provider + poller<br/>GET /api/oauth/usage<br/>300 s poll, 180 s floor, backoff on 429"]
         LOCAL["JSONL analytics provider<br/>incremental scan, dedupe by message id"]
+        CALC["AnalyticsCalculator<br/>today, top projects, 5-hour block, priced"]
         AGG["UsageAggregator<br/>percentages from OAuth (authoritative)<br/>tokens, cost, burn rate from JSONL"]
-        HIST[("History store<br/>SQLite: snapshots, daily rollups, scan offsets")]
+        HIST[("history.db<br/>SQLite: snapshot series, usage events, scan offsets")]
         CACHE[("cache.json<br/>last snapshot, no token")]
     end
 
@@ -165,12 +187,14 @@ flowchart LR
 
     CRED --> OAUTH
     JSONL --> LOCAL
-    PRICE --> LOCAL
+    PRICE --> CALC
+    OAUTH -->|every fresh snapshot| HIST
+    OAUTH --> CACHE
+    CACHE -.->|on launch| OAUTH
+    LOCAL -->|events, offsets| HIST
+    HIST --> CALC
     OAUTH -->|UsageSnapshot| AGG
-    LOCAL -->|LocalAnalytics| AGG
-    AGG --> HIST
-    AGG --> CACHE
-    CACHE -.->|on launch| AGG
+    CALC -->|LocalAnalytics| AGG
     AGG --> VM
     HIST -->|chart series| VM
     VM --> TRAY

@@ -34,6 +34,7 @@ Those three commands are exactly what CI runs. If they pass locally they pass in
 - Keep commits small and reviewable. Do not commit generated artifacts, user data, screenshots containing an account email, or anything from `~/.claude`.
 - Update `CLAUDE.md`, `docs/` and the Mermaid diagrams whenever you change behaviour they describe.
 - Add a line under `[Unreleased]` in `CHANGELOG.md`.
+- Releases are cut by the maintainer: a `v<major>.<minor>.<patch>` tag pushed from a green `main` runs the release workflow, which publishes, zips, checksums and publishes the GitHub release (see the Release section of `CLAUDE.md`).
 
 ## Reporting bugs
 
