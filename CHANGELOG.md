@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-07
+
 ### Added
 
 - Settings to hide the extra-usage line (`showExtraUsage`) and to show the endpoint's inactive codename windows (`showInactiveWindows`).
@@ -64,5 +66,6 @@ First release. Everything below is new in this version.
 - Single-file publish failed with IL3000: the Start with Windows wiring fell back to `Assembly.Location`, which is empty in a single-file app. It now falls back to the exe next to `AppContext.BaseDirectory`.
 - Core awaits use `ConfigureAwait(false)` and the host starts and stops off the UI thread, so quitting no longer waits five seconds for the polling loop.
 
-[Unreleased]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mlcousek/claude_trayapp/releases/tag/v0.1.0
