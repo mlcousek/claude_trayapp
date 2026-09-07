@@ -36,6 +36,8 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
     private readonly PricingProvider _pricing;
     private readonly Action _openSettings;
     private bool _showLocalAnalytics = true;
+    private bool _showExtraUsage = true;
+    private bool _showInactiveWindows;
     private bool _applyingSettings;
     private PollStatus _status;
     private AccountInfo _account = AccountInfo.Empty;
@@ -289,6 +291,8 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
         {
             IsEmailMasked = settings.MaskEmail;
             _showLocalAnalytics = settings.ShowLocalAnalytics;
+            _showExtraUsage = settings.ShowExtraUsage;
+            _showInactiveWindows = settings.ShowInactiveWindows;
             Charts.ShowDaily = settings.ShowLocalAnalytics;
             Charts.RangeHours = settings.ChartRangeHours;
         }
@@ -350,14 +354,14 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
         }
 
         _chartsLoading = true;
-        _ = LoadChartsAsync(_status.Snapshot, _local?.CurrentBlock, Charts.RangeHours, _clock.GetUtcNow());
+        _ = LoadChartsAsync(_status.Snapshot, _local?.CurrentBlock, Charts.RangeHours, _showInactiveWindows, _clock.GetUtcNow());
     }
 
-    private async Task LoadChartsAsync(UsageSnapshot? snapshot, BlockAnalytics? block, int rangeHours, DateTimeOffset now)
+    private async Task LoadChartsAsync(UsageSnapshot? snapshot, BlockAnalytics? block, int rangeHours, bool showInactiveWindows, DateTimeOffset now)
     {
         try
         {
-            var bundle = await Task.Run(() => _chartLoader.Load(snapshot, block, rangeHours, now));
+            var bundle = await Task.Run(() => _chartLoader.Load(snapshot, block, rangeHours, now, showInactiveWindows));
             await _dispatcher.InvokeAsync(() => ApplyCharts(bundle));
         }
         catch (Exception ex)
@@ -418,7 +422,7 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
         }
 
         HasPrimary = Primary is not null;
-        SyncSecondary(snapshot?.Windows.Where(w => !ReferenceEquals(w, primary)).ToList() ?? [], now);
+        SyncSecondary(snapshot?.VisibleWindows(_showInactiveWindows).Where(w => !ReferenceEquals(w, primary)).ToList() ?? [], now);
         HasSecondary = SecondaryWindows.Count > 0;
         HasWindows = HasPrimary || HasSecondary;
         HasNoWindows = !HasWindows;
@@ -426,7 +430,7 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
 
     private void RebuildOverage(UsageSnapshot? snapshot)
     {
-        if (snapshot?.Overage is { IsEnabled: true } overage)
+        if (_showExtraUsage && snapshot?.Overage is { IsEnabled: true } overage)
         {
             OverageAmountText = DescribeOverageAmount(overage);
             OveragePercent = overage.UtilizationPercent ?? 0;

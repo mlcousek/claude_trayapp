@@ -74,6 +74,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     private bool _showLocalAnalytics = true;
 
     [ObservableProperty]
+    private bool _showExtraUsage = true;
+
+    [ObservableProperty]
+    private bool _showInactiveWindows;
+
+    [ObservableProperty]
     private string _retentionText = string.Empty;
 
     [ObservableProperty]
@@ -152,6 +158,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             SelectedTheme = ThemeChoices.First(c => c.Value == settings.Theme);
             MaskEmail = settings.MaskEmail;
             ShowLocalAnalytics = settings.ShowLocalAnalytics;
+            ShowExtraUsage = settings.ShowExtraUsage;
+            ShowInactiveWindows = settings.ShowInactiveWindows;
             RetentionText = settings.HistoryRetentionDays.ToString(CultureInfo.InvariantCulture);
             RetentionNote = null;
             NotificationsEnabled = settings.Notifications.Enabled;
@@ -248,6 +256,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     partial void OnMaskEmailChanged(bool value) => Persist(s => s with { MaskEmail = value });
 
     partial void OnShowLocalAnalyticsChanged(bool value) => Persist(s => s with { ShowLocalAnalytics = value });
+
+    partial void OnShowExtraUsageChanged(bool value) => Persist(s => s with { ShowExtraUsage = value });
+
+    partial void OnShowInactiveWindowsChanged(bool value) => Persist(s => s with { ShowInactiveWindows = value });
 
     partial void OnNotificationsEnabledChanged(bool value) => Persist(s => s with { Notifications = s.Notifications with { Enabled = value } });
 

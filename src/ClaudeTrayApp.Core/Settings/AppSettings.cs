@@ -58,6 +58,12 @@ public sealed record AppSettings
 
     public bool ShowLocalAnalytics { get; init; } = true;
 
+    /// <summary>Show the extra-usage (overage) line when the plan has it enabled.</summary>
+    public bool ShowExtraUsage { get; init; } = true;
+
+    /// <summary>Show codename windows the endpoint reports at 0 % with no reset time; hidden by default.</summary>
+    public bool ShowInactiveWindows { get; init; }
+
     public bool MaskEmail { get; init; } = true;
 
     public ThemeSetting Theme { get; init; } = ThemeSetting.System;

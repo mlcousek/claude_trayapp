@@ -93,7 +93,7 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
         IconState = primary is null
             ? TrayIconState.Unknown with { IsStale = stale }
             : new TrayIconState(primary.UtilizationPercent, primary.Status, stale);
-        Tooltip = BuildTooltip(status, now);
+        Tooltip = BuildTooltip(status, now, settings.ShowInactiveWindows);
 
         if (status.State == PollState.Ok && status.Snapshot is { } snapshot && settings.Notifications.Enabled)
         {
@@ -128,12 +128,12 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>One line: the first window with its reset countdown, up to two more windows, then the state.</summary>
-    internal static string BuildTooltip(PollStatus status, DateTimeOffset now)
+    internal static string BuildTooltip(PollStatus status, DateTimeOffset now, bool showInactiveWindows = false)
     {
         string text;
-        if (status.Snapshot is { Windows.Count: > 0 } snapshot)
+        if (status.Snapshot is { } snapshot && snapshot.VisibleWindows(showInactiveWindows) is { Count: > 0 } windows)
         {
-            var parts = snapshot.Windows.Take(3).Select((window, index) => index == 0
+            var parts = windows.Take(3).Select((window, index) => index == 0
                 ? UsageSnapshotFormatter.DescribeWindow(window, now)
                 : string.Create(CultureInfo.InvariantCulture, $"{window.DisplayName} {Math.Round(window.UtilizationPercent)}%"));
             text = "Claude usage: " + string.Join(" · ", parts) + Suffix(status.State);

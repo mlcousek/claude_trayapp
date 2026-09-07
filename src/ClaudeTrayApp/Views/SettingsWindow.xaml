@@ -123,6 +123,14 @@
                           Content="Show tokens, cost and pace from Claude Code session logs"
                           IsChecked="{Binding ShowLocalAnalytics}"
                           AutomationProperties.Name="Show local analytics" />
+                <CheckBox Style="{StaticResource Check}"
+                          Content="Show the extra usage line"
+                          IsChecked="{Binding ShowExtraUsage}"
+                          AutomationProperties.Name="Show the extra usage line" />
+                <CheckBox Style="{StaticResource Check}"
+                          Content="Show inactive codename windows (0%, no reset time, e.g. Nimbus quill)"
+                          IsChecked="{Binding ShowInactiveWindows}"
+                          AutomationProperties.Name="Show inactive codename windows" />
 
                 <!-- Notifications -->
                 <TextBlock Style="{StaticResource SectionTitle}" Text="Notifications" />

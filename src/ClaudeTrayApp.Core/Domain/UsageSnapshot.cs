@@ -47,6 +47,12 @@ public sealed record UsageWindow(
     /// <summary>True when the endpoint reports the window as locked, whatever the percentage says.</summary>
     public bool IsLocked => LockedReason is not null;
 
+    /// <summary>A window at 0 % with no reset time carries nothing to show; the endpoint returns codename windows like that.</summary>
+    public bool IsInactive => UtilizationPercent <= 0 && ResetsAt is null && !IsLocked;
+
+    /// <summary>True for the documented keys (5-hour, 7-day and its per-model variants), which are always shown.</summary>
+    public bool IsKnownKey => WindowKeys.PreferredOrder.Any(k => string.Equals(k, Key, StringComparison.OrdinalIgnoreCase));
+
     /// <summary>Time left until the window resets, or null when unknown or already due.</summary>
     public TimeSpan? TimeUntilReset(DateTimeOffset now) => ResetsAt is { } resets && resets > now ? resets - now : null;
 }
@@ -79,6 +85,13 @@ public sealed record UsageSnapshot(
     /// <summary>The window that drives the tray numeral when the user has not chosen one: the 5-hour window if present, else the first.</summary>
     [JsonIgnore]
     public UsageWindow? PrimaryWindow => FindWindow(WindowKeys.FiveHour) ?? (Windows.Count > 0 ? Windows[0] : null);
+
+    /// <summary>
+    /// The windows worth a line: every documented window, plus codename windows only while they carry a value or a
+    /// reset time, unless <paramref name="showInactive"/> asks for all of them.
+    /// </summary>
+    public IReadOnlyList<UsageWindow> VisibleWindows(bool showInactive) =>
+        showInactive ? Windows : Windows.Where(w => w.IsKnownKey || !w.IsInactive).ToList();
 
     /// <summary>The window a setting names, or <see cref="PrimaryWindow"/> for "auto", an empty key, or a key this snapshot lacks.</summary>
     public UsageWindow? WindowFor(string? preferredKey) =>

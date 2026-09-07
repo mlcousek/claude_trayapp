@@ -24,9 +24,16 @@ public class TrayIconViewModelTests
         new(state, Snapshot(), Now, Now, Now.AddMinutes(5), null, 0);
 
     [Fact]
-    public void Tooltip_lists_the_first_three_windows_with_one_countdown()
+    public void Tooltip_lists_the_first_three_visible_windows_with_one_countdown()
     {
         TrayIconViewModel.BuildTooltip(Status(PollState.Ok), Now)
+            .ShouldBe("Claude usage: 5-hour 86% (resets in 1h 53m) · 7-day 9% · Extra window 50%");
+    }
+
+    [Fact]
+    public void Tooltip_includes_inactive_codename_windows_only_when_asked()
+    {
+        TrayIconViewModel.BuildTooltip(Status(PollState.Ok), Now, showInactiveWindows: true)
             .ShouldBe("Claude usage: 5-hour 86% (resets in 1h 53m) · 7-day 9% · Nimbus quill 0%");
     }
 

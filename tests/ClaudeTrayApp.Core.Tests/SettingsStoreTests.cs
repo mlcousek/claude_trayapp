@@ -24,6 +24,8 @@ public sealed class SettingsStoreTests : IDisposable
         json.ShouldContain("\"theme\": \"system\"");
         json.ShouldContain("\"trayWindow\": \"auto\"");
         json.ShouldContain("\"thresholds\": [");
+        json.ShouldContain("\"showExtraUsage\": true");
+        json.ShouldContain("\"showInactiveWindows\": false");
         store.LastError.ShouldBeNull();
     }
 
@@ -38,6 +40,8 @@ public sealed class SettingsStoreTests : IDisposable
             HistoryRetentionDays = 30,
             Notifications = new NotificationSettings { Enabled = true, Thresholds = [50, 90] },
             ShowLocalAnalytics = false,
+            ShowExtraUsage = false,
+            ShowInactiveWindows = true,
             MaskEmail = false,
             Theme = ThemeSetting.Dark,
             PricingFilePath = @"C:\prices\pricing.json",

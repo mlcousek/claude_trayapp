@@ -21,11 +21,16 @@ public sealed class ChartDataLoader
         _zone = zone ?? TimeZoneInfo.Local;
     }
 
-    public ChartBundle Load(UsageSnapshot? snapshot, BlockAnalytics? block, int rangeHours, DateTimeOffset now)
+    /// <summary>
+    /// Loads every chart. Codename windows whose history is flat at zero are left out of the history chart unless
+    /// <paramref name="showInactiveWindows"/> asks for them, matching what the flyout lists.
+    /// </summary>
+    public ChartBundle Load(UsageSnapshot? snapshot, BlockAnalytics? block, int rangeHours, DateTimeOffset now, bool showInactiveWindows = false)
     {
         var from = now - TimeSpan.FromHours(Math.Max(1, rangeHours));
         var windows = OrderKeys(_history.GetWindowKeys())
             .Select(key => (key, WindowNameHumanizer.Humanize(key), _history.GetSeries(key, from, now)))
+            .Where(w => showInactiveWindows || IsKnown(w.key) || w.Item3.Any(p => p.Percent > 0))
             .ToList();
         var history = ChartDataBuilder.History(windows, from, now);
 
@@ -70,6 +75,8 @@ public sealed class ChartDataLoader
             ? (now - TimeSpan.FromDays(7), now)
             : (now - TimeSpan.FromHours(24), now);
     }
+
+    private static bool IsKnown(string key) => Rank(key) != int.MaxValue;
 
     private static int Rank(string key)
     {

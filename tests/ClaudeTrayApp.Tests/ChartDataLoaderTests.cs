@@ -29,6 +29,25 @@ public class ChartDataLoaderTests
     }
 
     [Fact]
+    public void Flat_codename_windows_stay_out_of_the_history_chart_unless_asked()
+    {
+        var history = Substitute.For<IHistoryStore>();
+        history.GetWindowKeys().Returns(["five_hour", "nimbus_quill", "tangelo"]);
+        history.GetSeries("five_hour", Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>())
+            .Returns([new HistoryPoint(Now.AddHours(-1), 0, null), new HistoryPoint(Now, 0, null)]);
+        history.GetSeries("nimbus_quill", Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>())
+            .Returns([new HistoryPoint(Now.AddHours(-1), 0, null), new HistoryPoint(Now, 0, null)]);
+        history.GetSeries("tangelo", Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>())
+            .Returns([new HistoryPoint(Now.AddHours(-1), 0, null), new HistoryPoint(Now, 12, null)]);
+        var store = Substitute.For<IAnalyticsStore>();
+        store.DailyTotals(Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>(), Arg.Any<TimeSpan>()).Returns([]);
+        var loader = new ChartDataLoader(history, new AnalyticsCalculator(store, () => PricingTable.Empty, TimeZoneInfo.Utc), TimeZoneInfo.Utc);
+
+        loader.Load(null, null, 24, Now).History.Series.Select(s => s.Key).ShouldBe(["five_hour", "tangelo"]);
+        loader.Load(null, null, 24, Now, showInactiveWindows: true).History.Series.Select(s => s.Key).ShouldBe(["five_hour", "nimbus_quill", "tangelo"]);
+    }
+
+    [Fact]
     public void Load_queries_each_window_and_builds_every_chart()
     {
         var history = Substitute.For<IHistoryStore>();
