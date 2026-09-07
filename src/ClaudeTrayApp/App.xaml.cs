@@ -227,8 +227,10 @@ public partial class App : Application
         services.AddSingleton<Application>(this);
         services.AddSingleton<ThemeManager>();
         services.AddSingleton<ThresholdNotifier>();
+        // The Run entry points at the process itself. Assembly.Location is empty inside a single-file publish (IL3000),
+        // so the fallback is the exe next to AppContext.BaseDirectory rather than the assembly.
         services.AddSingleton(sp => new AutostartManager(
-            Environment.ProcessPath ?? Assembly.GetExecutingAssembly().Location,
+            Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "ClaudeTrayApp.exe"),
             sp.GetRequiredService<ILogger<AutostartManager>>()));
         services.AddSingleton(sp => new SettingsCoordinator(
             sp.GetRequiredService<SettingsStore>(),
