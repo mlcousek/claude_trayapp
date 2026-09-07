@@ -21,6 +21,7 @@ dotnet run --project src/ClaudeTrayApp
 dotnet run --project src/ClaudeTrayApp -- --probe    # one live fetch, redacted summary in the log, exit 0 or 2
 dotnet run --project src/ClaudeTrayApp -- --render-icons out/icons   # tray icon contact sheets (PNG) for a legibility check
 dotnet run --project src/ClaudeTrayApp -- --capture-flyout out/flyout.png   # opens the flyout after the first poll, screenshots it, exits
+dotnet run --project src/ClaudeTrayApp -- --capture-settings out/settings.png   # opens the settings window, screenshots it, exits
 dotnet publish src/ClaudeTrayApp -c Release -r win-x64 -o artifacts/publish/win-x64
 dotnet publish src/ClaudeTrayApp -c Release -r win-arm64 -o artifacts/publish/win-arm64
 ```
@@ -30,9 +31,9 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 
 ## Layout
 
-- `src/ClaudeTrayApp/` WPF app: composition root (`App.xaml.cs`), `Themes/` (`Theme.xaml` tokens, `Controls.xaml` styles, `Palette.Dark.xaml`, `Palette.Light.xaml`), `Theming/` (Windows theme follower), `Tray/` (icon renderer, controller, converter, flyout placement maths), `Views/` (`FlyoutWindow`), `Controls/` (`RingArc`, `Sparkline`, `LineChart`, `BarChart`: hand-drawn, theme-brushed), `Charts/` (pure chart data builders, loader, palette), `ViewModels/`, `Hosting/`, `Interop/`, `Diagnostics/` (screenshot aid). The only project that references WPF.
+- `src/ClaudeTrayApp/` WPF app: composition root (`App.xaml.cs`), `Themes/` (`Theme.xaml` tokens, `Controls.xaml` styles, `Palette.Dark.xaml`, `Palette.Light.xaml`), `Theming/` (Windows theme follower), `Tray/` (icon renderer, controller, converter, flyout placement maths), `Views/` (`FlyoutWindow`, `SettingsWindow`), `Controls/` (`RingArc`, `Sparkline`, `LineChart`, `BarChart`: hand-drawn, theme-brushed), `Charts/` (pure chart data builders, loader, palette), `Startup/` (autostart Run entry, single instance, settings coordinator, settings window host), `ViewModels/`, `Hosting/`, `Interop/`, `Diagnostics/` (screenshot aid). The only project that references WPF.
 - `tests/ClaudeTrayApp.Tests/` WPF-side tests (net9.0-windows): tray state, tooltip, renderer pixels on an STA thread, chart data builders, charts view model.
-- `src/ClaudeTrayApp.Core/` `Domain/` (snapshot, windows, humaniser), `Credentials/`, `Providers/` (OAuth endpoint, parser), `Polling/` (state machine, poller), `Cache/`, `Analytics/` (JSONL line parser, incremental scanner, provider with watcher, calculator), `Storage/` (SQLite store: events, scan offsets, history), `Pricing/` (`pricing.json` loader and table), `History/` (recorder, retention), `Aggregation/`, `Account/`, `Security/` (redactor), `Diagnostics/`, `ClaudeCode/` (version detection). No UI references, ever.
+- `src/ClaudeTrayApp.Core/` `Domain/` (snapshot, windows, humaniser), `Credentials/`, `Providers/` (OAuth endpoint, parser), `Polling/` (state machine, poller), `Cache/`, `Analytics/` (JSONL line parser, incremental scanner, provider with watcher, calculator), `Storage/` (SQLite store: events, scan offsets, history), `Pricing/` (`pricing.json` loader, table, reloadable provider), `History/` (recorder, retention), `Aggregation/`, `Account/`, `Settings/` (settings model and hot-reloading store), `Notifications/` (threshold notifier), `Security/` (redactor), `Diagnostics/`, `ClaudeCode/` (version detection). No UI references, ever.
 - `tests/ClaudeTrayApp.Core.Tests/` xunit.v3 + Shouldly + NSubstitute. Fixture files with fake tokens and synthetic sessions only.
 - `docs/` `architecture.md`, `data-sources.md`, `diagrams/` (Mermaid sources), `screenshots/`.
 - `.github/` `workflows/ci.yml` (build, test, format), `workflows/release.yml` (M8), Dependabot, issue templates.
@@ -46,6 +47,7 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 - `JsonlScanner` reads only bytes appended since the last scan (530 files, 29k events, about 4 s on first run, under 100 ms after); `LocalAnalyticsProvider` rescans on a debounced file watcher and a 5-minute safety net; `AnalyticsCalculator` derives today, top projects and the 5-hour block on demand, pricing from `pricing.json`.
 - ViewModels (CommunityToolkit.Mvvm source generators) adapt aggregated data for binding; views bind and draw, never compute.
 - Charts are drawn by three small `FrameworkElement`s in `Controls/` from theme brushes; there is no charting package. `Charts/ChartDataBuilder` turns history rows into series (peak-preserving downsampling, projection clipped at the reset, daily totals with the long tail as "other") and is pure; `ChartDataLoader` runs the SQLite queries on a thread-pool thread; `ChartsViewModel` hands the controls points and brushes. Every chart carries a text summary as its automation name and caption.
+- `SettingsStore` owns `%APPDATA%\ClaudeTrayApp\settings.json`: defaults written on first run, atomic saves, a debounced watcher for hot reload, and a file that does not parse is left alone and reported (`LastError`). `SettingsCoordinator` pushes changes into the poller (`UpdateOptions` re-times a wait in progress), history retention, the scanner's age cutoff, `PricingProvider` and the theme override; view models subscribe to the store themselves, and the flyout writes back its two toggles (email mask, chart range). `ThresholdNotifier` fires each threshold once per window and period; `TrayIconViewModel` turns alerts into Windows notifications. `SingleInstance` (named mutex plus event) makes a second launch surface the first instance's flyout.
 - Dependency direction is one way: `ClaudeTrayApp` references `ClaudeTrayApp.Core`. Core never references WPF; `CoreArchitectureTests` fails the build if it does.
 
 ## Hard rules
@@ -68,6 +70,7 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 - The flyout is hidden, never closed; it is warmed up off-screen at start so a real open takes under 150 ms. Chart data is loaded once at warm-up and then only while the flyout is visible; loads never run on the UI thread. The window re-places itself when its height changes and never exceeds the work area (the body scrolls instead).
 - Tests are required for anything in Core. Test names use underscores (CA1707 is off under `tests/`).
 - Accessibility is part of done: keyboard navigation, `AutomationProperties` on every control, contrast at least 4.5:1, never colour alone.
+- Settings apply the moment they change; the settings window holds no unsaved state and only `SettingsStore` writes settings.json. Start with Windows lives in the registry, not in the file.
 
 ## Known fragilities
 
@@ -80,6 +83,7 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 - The endpoint's own `limits[].severity` said `warning` at 86 %, below this app's 70/90 status thresholds; the mapping from `limits[].kind` to window keys is unverified, so `limits` is not parsed yet.
 - H.NotifyIcon.Wpf 2.4 dropped net9.0-windows; stay on 2.3.x (Dependabot is told so). Its `IconSource` path rejects `RenderTargetBitmap`, so the tray icon is converted to a `System.Drawing.Icon` by `IconConverter` and set through `TaskbarIcon.Icon`.
 - The tray icon is rendered at the system DPI (16/20/24/32 px). Per-monitor DPI for the taskbar is not tracked; a DPI change triggers a redraw through `SystemEvents.DisplaySettingsChanged`.
+- The Run entry points at `Environment.ProcessPath`; after the executable moves, Start with Windows reads as off until toggled again. Notifications use H.NotifyIcon's `ShowNotification`, which Windows may suppress under Focus assist.
 
 ## Before you start
 
@@ -90,4 +94,4 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 
 ## Milestones
 
-M1 scaffold (done) · M2 core domain, OAuth provider, cache, backoff (done, live probe verified 2026-09-07) · M3 tray icon (done) · M4 flyout (done) · M5 JSONL analytics, history, aggregation (done) · M6 charts (done) · M7 settings, autostart, notifications, single instance · M8 release pipeline, docs, v0.1.0
+M1 scaffold (done) · M2 core domain, OAuth provider, cache, backoff (done, live probe verified 2026-09-07) · M3 tray icon (done) · M4 flyout (done) · M5 JSONL analytics, history, aggregation (done) · M6 charts (done) · M7 settings, autostart, notifications, single instance (done) · M8 release pipeline, docs, v0.1.0

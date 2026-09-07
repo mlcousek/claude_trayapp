@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Settings window (tray menu, or the Settings button in the flyout) backed by `%APPDATA%\ClaudeTrayApp\settings.json`, written with defaults on first run and hot-reloaded: poll interval (floor 180 s, applied to the wait in progress), the window shown in the tray icon, history chart range, history retention with a Clear history action, threshold notifications (off by default, each threshold once per window and period), show or hide local analytics, mask email, theme override, pricing file path. A file that does not parse is left untouched and reported.
+- Start with Windows: an opt-in, per-user Run entry, toggled from the tray menu (checkable) or the Settings window.
+- One instance per session: a second launch opens the running instance's flyout and exits.
+- Windows notifications from the tray icon when a usage window passes a chosen threshold.
+- `--capture-settings <png>` development switch.
 - Charts in the flyout, drawn by hand from theme brushes (no charting package): the current 5-hour block with its recorded percentages, a dashed projection at the current pace and the projected limit marked when it lands before the reset; utilization history of every window over 24 h, 7 d or 30 d; tokens per day for the last two weeks, split by model on request. Hover readouts, a one-sentence text equivalent per chart, peak-preserving downsampling, and an honest "no data yet" state. Sparklines in the hero and in every window row.
 - The flyout re-places itself when its height changes, never grows past the work area (the body scrolls instead), and loads chart data off the UI thread only while it is visible.
 - Local analytics from Claude Code session logs: incremental JSONL scanning with per-file offsets in SQLite, deduplication by message id and request id, tolerant of malformed and half-written lines and locked files, near-live updates through a debounced file watcher. Derives today's tokens, per-model and top-project breakdowns, the current 5-hour block's burn rate and, from the endpoint's own percentage, when the limit lands relative to the reset.

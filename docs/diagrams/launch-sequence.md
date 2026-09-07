@@ -6,14 +6,17 @@ App launch to first render to background refresh. The flyout opens from cached d
 sequenceDiagram
     actor U as User
     participant App as App (composition root)
+    participant Settings as settings.json
     participant Cache as cache.json
     participant Tray as Tray icon
     participant Poll as Polling loop
     participant API as api.anthropic.com
     participant Local as JSONL analytics
 
-    U->>App: launch (single-instance check)
+    U->>App: launch
+    App->>App: single-instance mutex (a second launch signals the first and exits)
     App->>App: build host, Serilog, DI
+    App->>Settings: load settings.json (defaults written on first run), start watching
     App->>Cache: load last snapshot
     Cache-->>App: snapshot or none
     App->>Tray: render icon from cache (stale flag if old)

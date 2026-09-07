@@ -10,11 +10,11 @@ local token/cost analytics.
 > **Unofficial tool.** Claude Usage Tray is a community project. It is not affiliated with, endorsed by, or supported
 > by Anthropic. It relies on an undocumented endpoint that can change or stop working at any time.
 
-> **Status: pre-release, under construction.** Milestones 1 to 6 of 8 are complete: solution scaffold, CI, docs,
+> **Status: pre-release, under construction.** Milestones 1 to 7 of 8 are complete: solution scaffold, CI, docs,
 > the data layer (credential discovery, the usage endpoint provider with backoff and cache, verified live), the
-> generated tray icon with its context menu, the flyout, local analytics from the session logs with history, and
-> the charts. Settings and the release pipeline follow next. No release exists yet; see [CHANGELOG.md](CHANGELOG.md)
-> for progress.
+> generated tray icon with its context menu, the flyout, local analytics from the session logs with history, the
+> charts, and settings with notifications, autostart and single instance. The release pipeline follows next. No
+> release exists yet; see [CHANGELOG.md](CHANGELOG.md) for progress.
 
 <p>
   <img src="docs/screenshots/flyout-dark.png" alt="The flyout: a large ring showing the 5-hour window, a plain-language status and the reset countdown; a pace line with tokens this block, tokens per hour and the API-equivalent cost; compact rows for the 7-day window and a codename window; extra usage; a Today block with tokens and cost; a Charts section with a This block, History and Daily picker showing the current block's recorded percentages, a dashed projection and the projected limit marked; footer naming the sources with Refresh and Settings" width="352">
@@ -40,7 +40,9 @@ The tray icon in every state and size, on a dark and a light taskbar (native ren
   projection and the moment the limit would land), history of every window over 24 h, 7 d or 30 d, and tokens per
   day for two weeks, split by model on request. Hover a chart for the exact reading; every chart also has a
   one-sentence text equivalent.
-- **Context menu (right-click).** Refresh, Settings, Open logs, Start with Windows, About, Quit.
+- **Context menu (right-click).** Refresh, Settings, Open logs, Start with Windows (checkable), About, Quit.
+- **Notifications (opt-in).** A Windows notification when a window passes a threshold you chose, at most once per
+  window and period.
 
 ## Requirements
 
@@ -75,21 +77,31 @@ dotnet run --project src/ClaudeTrayApp
 
 ## Settings
 
-Settings live in `%APPDATA%\ClaudeTrayApp\settings.json`, are hot-reloaded, and can be edited from the Settings window.
-Final key names are fixed in milestone 7; the intended set is:
+Open **Settings** from the tray menu or from the flyout. Every change applies at once and is written to
+`%APPDATA%\ClaudeTrayApp\settings.json`. The file is hot-reloaded, so you can also edit it by hand while the app
+runs; a file that does not parse is left untouched and reported in the Settings window.
 
-| Setting | Default | Notes |
+<p>
+  <img src="docs/screenshots/settings-dark.png" alt="The settings window: poll interval, the window shown in the tray icon, Start with Windows, theme, history chart range, mask email, show local analytics, threshold notifications, history retention with Clear history, and the pricing file; the footer shows the settings.json path with Open folder and Reset to defaults" width="400">
+</p>
+
+| Key | Default | What it does |
 |---|---|---|
-| Poll interval | 300 s | Hard floor 180 s. |
-| Tray window | auto | Which usage window drives the tray numeral. |
-| Chart range | 24 h | 24 h, 7 d or 30 d. |
-| History retention | 90 days | Plus a "clear history" action. |
-| Notifications | off | Thresholds such as 80 % and 95 %, at most once per window per period. |
-| Start with Windows | off | Per-user `HKCU\...\Run` entry, opt-in. |
-| Show local analytics | on | Hide the JSONL-derived section entirely. |
-| Mask email | on | Toggle from the flyout. |
-| Theme | system | Follow Windows, or force light or dark. |
-| Pricing file | bundled | Path to an alternative `pricing.json`. |
+| `pollIntervalSeconds` | `300` | Seconds between usage checks. Values below 180 are raised to 180; a change re-times the wait in progress. |
+| `trayWindow` | `"auto"` | Window key that drives the tray numeral (`five_hour`, `seven_day`, ...). `auto` picks the 5-hour window when present. |
+| `chartRangeHours` | `24` | History chart range: 24, 168 or 720. The range pills in the flyout change it too. |
+| `historyRetentionDays` | `90` | Percentages and token totals older than this are pruned. **Clear history** empties the local database; the session logs are never touched. |
+| `notifications.enabled` | `false` | Windows notifications when a window passes a threshold. |
+| `notifications.thresholds` | `[80, 95]` | Percentages, each announced at most once per window and period. |
+| `showLocalAnalytics` | `true` | Show tokens, cost, pace and the daily chart derived from the session logs. |
+| `maskEmail` | `true` | Mask the account email in the flyout; the flyout's Show/Hide button changes it too. |
+| `theme` | `"system"` | `system`, `light` or `dark`. |
+| `pricingFilePath` | `null` | Path to your own `pricing.json`; `null` means the bundled file. |
+
+**Start with Windows** is not stored in the file: it is an opt-in, per-user `HKCU\...\Run` entry, toggled from the
+tray menu or the Settings window and never needing administrator rights.
+
+Only one instance runs per session. Launching the app again opens the running instance's flyout and exits.
 
 ## How the data sources work, and their limits
 

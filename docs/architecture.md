@@ -122,14 +122,17 @@ flowchart TB
 sequenceDiagram
     actor U as User
     participant App as App (composition root)
+    participant Settings as settings.json
     participant Cache as cache.json
     participant Tray as Tray icon
     participant Poll as Polling loop
     participant API as api.anthropic.com
     participant Local as JSONL analytics
 
-    U->>App: launch (single-instance check)
+    U->>App: launch
+    App->>App: single-instance mutex (a second launch signals the first and exits)
     App->>App: build host, Serilog, DI
+    App->>Settings: load settings.json (defaults written on first run), start watching
     App->>Cache: load last snapshot
     Cache-->>App: snapshot or none
     App->>Tray: render icon from cache (stale flag if old)
@@ -150,11 +153,12 @@ sequenceDiagram
 
 ## Status
 
-Milestones 1 to 6 are delivered: solution layout, build settings, CI, `AppPaths`, the composition root with file
+Milestones 1 to 7 are delivered: solution layout, build settings, CI, `AppPaths`, the composition root with file
 logging and crash logging, the usage domain, credential discovery, the OAuth usage provider, the polling state
 machine, the snapshot cache (verified against the live endpoint), theme tokens with dark and light palettes, the
 generated tray icon with its context menu, the flyout, the local analytics pipeline with the SQLite history store
-and the aggregator, and the charts. Settings arrive in milestone 7 and this document is updated with them.
+and the aggregator, the charts, and settings with threshold notifications, autostart and single instance. The
+release pipeline arrives in milestone 8.
 
 ## Local analytics pipeline
 
@@ -195,6 +199,28 @@ block, history over 24 h, 7 d or 30 d, daily tokens with a by-model toggle). Eve
 used as its automation name and shown under it, and a chart without data collapses to that sentence. Sparklines
 sit in the hero (the current block) and in each window row (its own period); they stay hidden until readings
 cover at least 5 % of the period.
+
+## Settings, notifications and startup
+
+`SettingsStore` (Core) owns `%APPDATA%\ClaudeTrayApp\settings.json`. It writes the defaults on first run so the
+file is there to edit, saves atomically (temp file plus move), normalises every value on the way in (the poll floor,
+retention bounds, sorted thresholds), and reloads on external edits through a debounced `FileSystemWatcher`,
+ignoring the echo of its own writes. A file that does not parse is left untouched and reported through
+`LastError`; the previous settings stay in force. `SettingsCoordinator` (app) applies the current settings once at
+start and then every change: `UsagePoller.UpdateOptions` re-times a wait in progress from the last attempt (a
+backoff keeps its plan), `HistoryOptions` and the scanner's age cutoff follow the retention, `PricingProvider`
+reloads when the pricing path changes, and `ThemeManager.Override` follows the theme setting. The flyout, tray
+and settings view models subscribe to the store themselves and marshal to the dispatcher; the flyout writes back
+its two toggles (email mask, chart range) so the file always says what the screen shows.
+
+`ThresholdNotifier` (Core) is pure: given a snapshot and the enabled thresholds it returns the crossings not yet
+announced, keyed by window and period (the window's reset time), reporting only the highest threshold when several
+are crossed at once. `TrayIconViewModel` evaluates it on every fresh snapshot and shows the result as a Windows
+notification through the tray icon.
+
+`AutostartManager` reads and writes the per-user `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` value
+for the running executable; it is not in settings.json because the registry is the truth. `SingleInstance` holds a
+named mutex; a second launch signals a named event and exits, and the first instance shows its flyout.
 
 ## Threading
 
