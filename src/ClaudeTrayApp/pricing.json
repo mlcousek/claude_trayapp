@@ -1,0 +1,25 @@
+{
+  "$comment": "USD per million tokens. Source: Anthropic first-party API pricing as cached by the claude-api reference on 2026-06-24; older models from Anthropic's public pricing page. Cache writes are 1.25x input (5 minute) and 2x input (1 hour); cache reads are 0.1x input unless listed. 'prefix' entries match dated ids such as claude-opus-4-1-20250805; the longest prefix wins. Edit this file or point Settings at your own copy; unknown models show 'cost unknown', never a guess.",
+  "effectiveDate": "2026-06-24",
+  "currency": "USD",
+  "models": [
+    { "id": "claude-fable-5-1", "match": "prefix", "input": 10, "output": 50, "cacheWrite5m": 12.5, "cacheWrite1h": 20, "cacheRead": 0.25 },
+    { "id": "claude-mythos-5-1", "match": "prefix", "input": 10, "output": 50, "cacheWrite5m": 12.5, "cacheWrite1h": 20, "cacheRead": 0.25 },
+    { "id": "claude-fable-5", "match": "prefix", "input": 10, "output": 50, "cacheWrite5m": 12.5, "cacheWrite1h": 20, "cacheRead": 1 },
+    { "id": "claude-opus-5", "match": "prefix", "input": 5, "output": 25, "cacheWrite5m": 6.25, "cacheWrite1h": 10, "cacheRead": 0.5 },
+    { "id": "claude-opus-4-8", "match": "prefix", "input": 5, "output": 25, "cacheWrite5m": 6.25, "cacheWrite1h": 10, "cacheRead": 0.5 },
+    { "id": "claude-opus-4-7", "match": "prefix", "input": 5, "output": 25, "cacheWrite5m": 6.25, "cacheWrite1h": 10, "cacheRead": 0.5 },
+    { "id": "claude-opus-4-6", "match": "prefix", "input": 5, "output": 25, "cacheWrite5m": 6.25, "cacheWrite1h": 10, "cacheRead": 0.5 },
+    { "id": "claude-opus-4-5", "match": "prefix", "input": 5, "output": 25, "cacheWrite5m": 6.25, "cacheWrite1h": 10, "cacheRead": 0.5 },
+    { "id": "claude-opus-4-1", "match": "prefix", "input": 15, "output": 75, "cacheWrite5m": 18.75, "cacheWrite1h": 30, "cacheRead": 1.5 },
+    { "id": "claude-opus-4", "match": "prefix", "input": 15, "output": 75, "cacheWrite5m": 18.75, "cacheWrite1h": 30, "cacheRead": 1.5 },
+    { "id": "claude-sonnet-5", "match": "prefix", "input": 2, "output": 10, "cacheWrite5m": 2.5, "cacheWrite1h": 4, "cacheRead": 0.2 },
+    { "id": "claude-sonnet-4-6", "match": "prefix", "input": 3, "output": 15, "cacheWrite5m": 3.75, "cacheWrite1h": 6, "cacheRead": 0.3 },
+    { "id": "claude-sonnet-4-5", "match": "prefix", "input": 3, "output": 15, "cacheWrite5m": 3.75, "cacheWrite1h": 6, "cacheRead": 0.3 },
+    { "id": "claude-sonnet-4", "match": "prefix", "input": 3, "output": 15, "cacheWrite5m": 3.75, "cacheWrite1h": 6, "cacheRead": 0.3 },
+    { "id": "claude-3-7-sonnet", "match": "prefix", "input": 3, "output": 15, "cacheWrite5m": 3.75, "cacheWrite1h": 6, "cacheRead": 0.3 },
+    { "id": "claude-3-5-sonnet", "match": "prefix", "input": 3, "output": 15, "cacheWrite5m": 3.75, "cacheWrite1h": 6, "cacheRead": 0.3 },
+    { "id": "claude-haiku-4-5", "match": "prefix", "input": 1, "output": 5, "cacheWrite5m": 1.25, "cacheWrite1h": 2, "cacheRead": 0.1 },
+    { "id": "claude-3-5-haiku", "match": "prefix", "input": 0.8, "output": 4, "cacheWrite5m": 1, "cacheWrite1h": 1.6, "cacheRead": 0.08 }
+  ]
+}

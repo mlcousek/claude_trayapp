@@ -1,7 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.IO;
 using System.Windows.Threading;
 using ClaudeTrayApp.Core.Account;
+using ClaudeTrayApp.Core.Aggregation;
+using ClaudeTrayApp.Core.Analytics;
 using ClaudeTrayApp.Core.Diagnostics;
 using ClaudeTrayApp.Core.Domain;
 using ClaudeTrayApp.Core.Polling;
@@ -11,11 +14,16 @@ using Microsoft.Extensions.Logging;
 
 namespace ClaudeTrayApp.ViewModels;
 
+/// <summary>A name, a value and an optional detail: one line in the details disclosure.</summary>
+public sealed record UsageRowViewModel(string Name, string Value, string? Detail);
+
 /// <summary>Everything the flyout binds to. Formatting happens here; the view only binds and draws.</summary>
 public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
 {
     private readonly UsagePoller _poller;
     private readonly IAccountInfoSource _accountSource;
+    private readonly LocalAnalyticsProvider _analytics;
+    private readonly AnalyticsCalculator _calculator;
     private readonly TimeProvider _clock;
     private readonly Dispatcher _dispatcher;
     private readonly ILogger<FlyoutViewModel> _logger;
@@ -75,6 +83,46 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
     private bool _hasOverage;
 
     [ObservableProperty]
+    private bool _hasPace;
+
+    [ObservableProperty]
+    private string _paceText = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasProjection;
+
+    [ObservableProperty]
+    private string _projectionText = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasToday;
+
+    [ObservableProperty]
+    private string _todayTokensText = string.Empty;
+
+    [ObservableProperty]
+    private string _todayCostText = string.Empty;
+
+    [ObservableProperty]
+    private string _pricingNoteText = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasProjects;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DetailsToggleLabel))]
+    private bool _isDetailsOpen;
+
+    [ObservableProperty]
+    private bool _hasAnalyticsNote;
+
+    [ObservableProperty]
+    private string _analyticsNoteText = string.Empty;
+
+    [ObservableProperty]
+    private string _sourcesText = string.Empty;
+
+    [ObservableProperty]
     private string _lastUpdatedText = "No data yet";
 
     [ObservableProperty]
@@ -86,25 +134,36 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
     public FlyoutViewModel(
         UsagePoller poller,
         IAccountInfoSource accountSource,
+        LocalAnalyticsProvider analytics,
+        AnalyticsCalculator calculator,
         TimeProvider clock,
         Dispatcher dispatcher,
         ILogger<FlyoutViewModel> logger)
     {
         _poller = poller;
         _accountSource = accountSource;
+        _analytics = analytics;
+        _calculator = calculator;
         _clock = clock;
         _dispatcher = dispatcher;
         _logger = logger;
         _status = poller.Status;
 
         _poller.StatusChanged += OnStatusChanged;
+        _analytics.DataChanged += OnAnalyticsChanged;
         Rebuild();
     }
 
     /// <summary>Every window except the primary one, in endpoint order.</summary>
     public ObservableCollection<UsageWindowViewModel> SecondaryWindows { get; } = [];
 
+    public ObservableCollection<UsageRowViewModel> ModelRows { get; } = [];
+
+    public ObservableCollection<UsageRowViewModel> ProjectRows { get; } = [];
+
     public string MaskToggleLabel => IsEmailMasked ? "Show" : "Hide";
+
+    public string DetailsToggleLabel => IsDetailsOpen ? "Hide details" : "Details by model and project";
 
     /// <summary>Hides the account line entirely; used when producing screenshots.</summary>
     public bool AccountHidden { get; set; }
@@ -156,7 +215,24 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
         return "Claude " + string.Join(' ', words);
     }
 
-    public void Dispose() => _poller.StatusChanged -= OnStatusChanged;
+    /// <summary>The last folder of a project path; empty or unknown paths become "(unknown)".</summary>
+    internal static string ProjectLabel(string? project)
+    {
+        if (string.IsNullOrWhiteSpace(project))
+        {
+            return "(unknown)";
+        }
+
+        var trimmed = project.TrimEnd('/', '\\');
+        var leaf = Path.GetFileName(trimmed);
+        return string.IsNullOrEmpty(leaf) ? trimmed : leaf;
+    }
+
+    public void Dispose()
+    {
+        _poller.StatusChanged -= OnStatusChanged;
+        _analytics.DataChanged -= OnAnalyticsChanged;
+    }
 
     private static string Capitalize(string word) =>
         word.Length == 0 ? word : char.ToUpper(word[0], CultureInfo.InvariantCulture) + word[1..].ToLower(CultureInfo.InvariantCulture);
@@ -165,8 +241,43 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
     {
         var now = _clock.GetUtcNow();
         var snapshot = _status.Snapshot;
-        var primary = snapshot?.PrimaryWindow;
+        var aggregated = UsageAggregator.Combine(_status, ComputeAnalytics(snapshot, now), now);
 
+        RebuildWindows(snapshot, now);
+        RebuildOverage(snapshot);
+        RebuildAnalytics(aggregated);
+
+        UnavailableText = _status.Message is { Length: > 0 } message
+            ? "Percentages unavailable. " + message
+            : "Percentages unavailable. Waiting for the usage endpoint.";
+        StatusMessage = HasWindows ? BannerFor(_status) : null;
+        HasStatusMessage = StatusMessage is not null;
+        LastUpdatedText = _status.LastSuccess is { } success
+            ? (_status.IsStale ? "Cached, updated " : "Updated ") + RelativeTime.Format(success, now)
+            : "No data yet";
+        SourcesText = aggregated.PercentagesAvailable
+            ? $"Percentages: {aggregated.PercentagesSource} · tokens: {AggregatedUsage.AnalyticsSource}"
+            : $"Tokens: {AggregatedUsage.AnalyticsSource}";
+
+        UpdateHeader();
+    }
+
+    private LocalAnalytics? ComputeAnalytics(UsageSnapshot? snapshot, DateTimeOffset now)
+    {
+        try
+        {
+            return _calculator.Compute(snapshot, now);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Local analytics could not be computed");
+            return null;
+        }
+    }
+
+    private void RebuildWindows(UsageSnapshot? snapshot, DateTimeOffset now)
+    {
+        var primary = snapshot?.PrimaryWindow;
         if (primary is null)
         {
             Primary = null;
@@ -185,34 +296,103 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
         HasSecondary = SecondaryWindows.Count > 0;
         HasWindows = HasPrimary || HasSecondary;
         HasNoWindows = !HasWindows;
+    }
 
-        UnavailableText = _status.Message is { Length: > 0 } message
-            ? "Percentages unavailable. " + message
-            : "Percentages unavailable. Waiting for the usage endpoint.";
-
-        StatusMessage = HasWindows ? BannerFor(_status) : null;
-        HasStatusMessage = StatusMessage is not null;
-
+    private void RebuildOverage(UsageSnapshot? snapshot)
+    {
         if (snapshot?.Overage is { IsEnabled: true } overage)
         {
             OverageAmountText = DescribeOverageAmount(overage);
             OveragePercent = overage.UtilizationPercent ?? 0;
             OverageText = string.Create(CultureInfo.InvariantCulture, $"Extra usage: {OverageAmountText} ({Math.Round(OveragePercent)}%)");
             HasOverage = true;
+            return;
+        }
+
+        OverageText = null;
+        OverageAmountText = string.Empty;
+        OveragePercent = 0;
+        HasOverage = false;
+    }
+
+    private void RebuildAnalytics(AggregatedUsage aggregated)
+    {
+        var local = aggregated.Local;
+        var block = local?.CurrentBlock;
+        HasPace = block is not null;
+        if (block is not null)
+        {
+            var cost = block.Cost is { } c ? " · ≈ " + TokenFormat.Money(c, local!.Pricing.Currency) : string.Empty;
+            PaceText = $"{TokenFormat.Compact(block.Tokens.Total)} tokens this block · {TokenFormat.Compact(block.TokensPerHour)}/h{cost}";
+            ProjectionText = block switch
+            {
+                { ProjectedLimitAt: { } at, LimitBeforeReset: true } when at > aggregated.Now =>
+                    "At this pace the limit lands at " + at.ToLocalTime().ToString("t", CultureInfo.CurrentCulture) + ", before the reset",
+                { ProjectedLimitAt: not null, LimitBeforeReset: false } => "At this pace the window resets before the limit",
+                _ => string.Empty,
+            };
+            HasProjection = ProjectionText.Length > 0;
         }
         else
         {
-            OverageText = null;
-            OverageAmountText = string.Empty;
-            OveragePercent = 0;
-            HasOverage = false;
+            PaceText = string.Empty;
+            ProjectionText = string.Empty;
+            HasProjection = false;
         }
 
-        LastUpdatedText = _status.LastSuccess is { } success
-            ? (_status.IsStale ? "Cached, updated " : "Updated ") + RelativeTime.Format(success, now)
-            : "No data yet";
+        HasToday = local is { EventCount: > 0 };
+        if (local is not null && HasToday)
+        {
+            var today = local.Today;
+            TodayTokensText = TokenFormat.Compact(today.Tokens.Total) + " tokens";
+            TodayCostText = today.Cost is { } cost
+                ? "≈ " + TokenFormat.Money(cost, local.Pricing.Currency) + " at API rates" + (today.HasUnknownModels ? ", some models unpriced" : string.Empty)
+                : "Cost unknown: no priced models today";
+            PricingNoteText = local.Pricing.EffectiveDate is { } date
+                ? "Prices as of " + date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                : "No pricing file loaded";
 
-        UpdateHeader();
+            ReplaceRows(ModelRows, today.ByModel.Select(m => new UsageRowViewModel(
+                m.Model,
+                TokenFormat.Compact(m.Tokens.Total),
+                m.Cost is { } modelCost ? TokenFormat.Money(modelCost, local.Pricing.Currency) : "cost unknown")));
+            ReplaceRows(ProjectRows, local.TopProjectsToday.Select(p => new UsageRowViewModel(ProjectLabel(p.Project), TokenFormat.Compact(p.Tokens), null)));
+            HasProjects = ProjectRows.Count > 0;
+        }
+        else
+        {
+            TodayTokensText = string.Empty;
+            TodayCostText = string.Empty;
+            PricingNoteText = string.Empty;
+            ModelRows.Clear();
+            ProjectRows.Clear();
+            HasProjects = false;
+        }
+
+        AnalyticsNoteText = local switch
+        {
+            null => "Local analytics unavailable; see the log.",
+            { EventCount: 0 } => _analytics.ProjectsDirectoryExists
+                ? "Scanning Claude Code session logs…"
+                : "No Claude Code session logs found yet.",
+            _ => string.Empty,
+        };
+        HasAnalyticsNote = AnalyticsNoteText.Length > 0;
+    }
+
+    private static void ReplaceRows(ObservableCollection<UsageRowViewModel> target, IEnumerable<UsageRowViewModel> rows)
+    {
+        var list = rows.ToList();
+        if (target.SequenceEqual(list))
+        {
+            return;
+        }
+
+        target.Clear();
+        foreach (var row in list)
+        {
+            target.Add(row);
+        }
     }
 
     private void SyncSecondary(List<UsageWindow> windows, DateTimeOffset now)
@@ -288,6 +468,7 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void Refresh()
     {
+        _analytics.RequestScan();
         if (_poller.TryRequestRefresh(out var reason))
         {
             ShowFeedback("Refreshing…");
@@ -301,4 +482,6 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
     private void ToggleEmailMask() => IsEmailMasked = !IsEmailMasked;
 
     private void OnStatusChanged(object? sender, PollStatus status) => _dispatcher.BeginInvoke(() => Apply(status));
+
+    private void OnAnalyticsChanged(object? sender, EventArgs e) => _dispatcher.BeginInvoke(Rebuild);
 }

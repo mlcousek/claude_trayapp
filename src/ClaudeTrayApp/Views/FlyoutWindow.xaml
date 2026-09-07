@@ -19,6 +19,20 @@
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
         AutomationProperties.Name="Claude usage">
+    <Window.Resources>
+        <DataTemplate x:Key="UsageRow" DataType="{x:Type vm:UsageRowViewModel}">
+            <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Style="{StaticResource CaptionText}" Foreground="{DynamicResource TextPrimaryBrush}" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="1" Style="{StaticResource CaptionText}" Margin="10,0,0,0" Text="{Binding Detail}" />
+                <TextBlock Grid.Column="2" Style="{StaticResource CaptionText}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="10,0,0,0" MinWidth="44" TextAlignment="Right" Text="{Binding Value}" />
+            </Grid>
+        </DataTemplate>
+    </Window.Resources>
     <Border x:Name="RootBorder" Background="{DynamicResource SurfaceBrush}" Padding="20,18,20,14">
         <StackPanel x:Name="Body">
 
@@ -80,8 +94,19 @@
                 </StackPanel>
             </Grid>
 
+            <!-- Pace of the current block, from the session logs and the endpoint percentage -->
+            <StackPanel Margin="0,12,0,0" Visibility="{Binding HasPace, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Style="{StaticResource CaptionText}" Text="{Binding PaceText}" TextWrapping="Wrap" />
+                <TextBlock Style="{StaticResource CaptionText}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           Margin="0,2,0,0"
+                           Text="{Binding ProjectionText}"
+                           TextWrapping="Wrap"
+                           Visibility="{Binding HasProjection, Converter={StaticResource BoolToVisibility}}" />
+            </StackPanel>
+
             <!-- Secondary windows: compact rows -->
-            <ItemsControl Margin="0,20,0,0"
+            <ItemsControl Margin="0,18,0,0"
                           ItemsSource="{Binding SecondaryWindows}"
                           IsTabStop="False"
                           Visibility="{Binding HasSecondary, Converter={StaticResource BoolToVisibility}}"
@@ -153,6 +178,47 @@
                              AutomationProperties.Name="Extra usage" />
             </Grid>
 
+            <!-- Today, from the local session logs -->
+            <Border Margin="0,14,0,0"
+                    Padding="0,12,0,0"
+                    BorderBrush="{DynamicResource HairlineBrush}"
+                    BorderThickness="0,1,0,0"
+                    Visibility="{Binding HasToday, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource EyebrowText}" VerticalAlignment="Center" Text="Today" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource NumeralText}" Text="{Binding TodayTokensText}" />
+                    </Grid>
+                    <TextBlock Style="{StaticResource CaptionText}" Margin="0,2,0,0" Text="{Binding TodayCostText}" TextWrapping="Wrap" />
+                    <ToggleButton x:Name="DetailsToggle"
+                                  Style="{StaticResource LinkToggle}"
+                                  Margin="0,6,0,0"
+                                  HorizontalAlignment="Left"
+                                  Content="{Binding DetailsToggleLabel}"
+                                  IsChecked="{Binding IsDetailsOpen}"
+                                  AutomationProperties.Name="Show or hide details by model and project" />
+                    <StackPanel Margin="0,8,0,0" Visibility="{Binding IsDetailsOpen, Converter={StaticResource BoolToVisibility}}">
+                        <ItemsControl ItemsSource="{Binding ModelRows}" ItemTemplate="{StaticResource UsageRow}" IsTabStop="False" AutomationProperties.Name="Tokens by model" />
+                        <TextBlock Style="{StaticResource EyebrowText}"
+                                   Margin="0,8,0,4"
+                                   Text="Top projects"
+                                   Visibility="{Binding HasProjects, Converter={StaticResource BoolToVisibility}}" />
+                        <ItemsControl ItemsSource="{Binding ProjectRows}" ItemTemplate="{StaticResource UsageRow}" IsTabStop="False" AutomationProperties.Name="Tokens by project" />
+                        <TextBlock Style="{StaticResource CaptionText}" Margin="0,6,0,0" Text="{Binding PricingNoteText}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Margin="0,12,0,0"
+                       Style="{StaticResource CaptionText}"
+                       Text="{Binding AnalyticsNoteText}"
+                       TextWrapping="Wrap"
+                       Visibility="{Binding HasAnalyticsNote, Converter={StaticResource BoolToVisibility}}" />
+
             <!-- Footer -->
             <Border Margin="0,16,0,0" Padding="0,12,0,0" BorderBrush="{DynamicResource HairlineBrush}" BorderThickness="0,1,0,0">
                 <Grid>
@@ -163,6 +229,7 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Style="{StaticResource CaptionText}" Text="{Binding LastUpdatedText}" />
+                        <TextBlock Style="{StaticResource CaptionText}" Text="{Binding SourcesText}" TextWrapping="Wrap" />
                         <TextBlock Style="{StaticResource CaptionText}"
                                    Text="{Binding RefreshFeedback}"
                                    Visibility="{Binding HasRefreshFeedback, Converter={StaticResource BoolToVisibility}}" />

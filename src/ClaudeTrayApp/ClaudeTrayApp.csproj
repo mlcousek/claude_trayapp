@@ -34,6 +34,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Pricing ships next to the binary and is user-editable; prices are never hardcoded. -->
+    <None Include="pricing.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ClaudeTrayApp.Core\ClaudeTrayApp.Core.csproj" />
   </ItemGroup>
 

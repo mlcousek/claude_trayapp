@@ -5,12 +5,16 @@ using System.Reflection;
 using System.Windows;
 using ClaudeTrayApp.Core;
 using ClaudeTrayApp.Core.Account;
+using ClaudeTrayApp.Core.Analytics;
 using ClaudeTrayApp.Core.Cache;
 using ClaudeTrayApp.Core.ClaudeCode;
 using ClaudeTrayApp.Core.Credentials;
 using ClaudeTrayApp.Core.Diagnostics;
+using ClaudeTrayApp.Core.History;
 using ClaudeTrayApp.Core.Polling;
+using ClaudeTrayApp.Core.Pricing;
 using ClaudeTrayApp.Core.Providers;
+using ClaudeTrayApp.Core.Storage;
 using ClaudeTrayApp.Hosting;
 using ClaudeTrayApp.Theming;
 using ClaudeTrayApp.Tray;
@@ -152,6 +156,28 @@ public partial class App : Application
         services.AddSingleton<ISnapshotCache>(sp => new SnapshotCache(paths.CacheFile, sp.GetRequiredService<ILogger<SnapshotCache>>()));
         services.AddSingleton<UsagePoller>();
 
+        // Local analytics: session logs into SQLite, priced from the bundled pricing.json.
+        services.AddSingleton(_ => new SqliteStore(paths.DatabaseFile));
+        services.AddSingleton<IAnalyticsStore>(sp => sp.GetRequiredService<SqliteStore>());
+        services.AddSingleton<IHistoryStore>(sp => sp.GetRequiredService<SqliteStore>());
+        services.AddSingleton(new HistoryOptions());
+        services.AddSingleton(sp => PricingLoader.Load(
+            overridePath: null,
+            Path.Combine(AppContext.BaseDirectory, "pricing.json"),
+            sp.GetRequiredService<ILogger<PricingTable>>()));
+        services.AddSingleton(sp => new AnalyticsCalculator(sp.GetRequiredService<IAnalyticsStore>(), () => sp.GetRequiredService<PricingTable>()));
+        services.AddSingleton(sp => new JsonlScanner(
+            paths.ClaudeProjectsDirectory,
+            sp.GetRequiredService<IAnalyticsStore>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<JsonlScanner>>(),
+            TimeSpan.FromDays(sp.GetRequiredService<HistoryOptions>().RetentionDays)));
+        services.AddSingleton(sp => new LocalAnalyticsProvider(
+            sp.GetRequiredService<JsonlScanner>(),
+            paths.ClaudeProjectsDirectory,
+            sp.GetRequiredService<ILogger<LocalAnalyticsProvider>>()));
+        services.AddSingleton<HistoryRecorder>();
+
         services.AddSingleton<Application>(this);
         services.AddSingleton<ThemeManager>();
         services.AddSingleton(sp => new TrayIconViewModel(
@@ -167,6 +193,8 @@ public partial class App : Application
         services.AddSingleton(sp => new FlyoutViewModel(
             sp.GetRequiredService<UsagePoller>(),
             sp.GetRequiredService<IAccountInfoSource>(),
+            sp.GetRequiredService<LocalAnalyticsProvider>(),
+            sp.GetRequiredService<AnalyticsCalculator>(),
             sp.GetRequiredService<TimeProvider>(),
             Dispatcher,
             sp.GetRequiredService<ILogger<FlyoutViewModel>>()));
@@ -175,6 +203,8 @@ public partial class App : Application
         if (!headless)
         {
             services.AddHostedService<UsagePollerService>();
+            services.AddHostedService<LocalAnalyticsService>();
+            services.AddHostedService<HistoryRecorderService>();
         }
     }
 
