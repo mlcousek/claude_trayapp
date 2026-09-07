@@ -52,6 +52,7 @@ public partial class App : Application
     private SingleInstance? _instance;
     private SettingsCoordinator? _settings;
     private SettingsWindowHost? _settingsWindows;
+    private bool _shuttingDown;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -125,6 +126,11 @@ public partial class App : Application
             _tray.LeftClick += (_, _) => _flyout.Toggle();
             _instance?.ListenForActivation(() => Dispatcher.BeginInvoke(() =>
             {
+                if (_shuttingDown)
+                {
+                    return;
+                }
+
                 Log.Information("Another launch asked for the flyout");
                 _flyout?.ShowFlyout();
             }));
@@ -151,6 +157,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _shuttingDown = true;
         try
         {
             _settingsWindows?.Close();
@@ -161,6 +168,17 @@ public partial class App : Application
             _instance?.Dispose();
             if (_host is { } host)
             {
+                // Unsubscribe the DI-singleton view models before the host (and the SQLite store it owns) stops, so a
+                // StatusChanged/DataChanged event firing from a background thread during shutdown can never reach a
+                // view model that then touches a disposed store. Only when the tray was actually set up: probe and
+                // render-icons runs shut down before these singletons are ever created.
+                if (_flyout is not null)
+                {
+                    host.Services.GetRequiredService<FlyoutViewModel>().Dispose();
+                    host.Services.GetRequiredService<TrayIconViewModel>().Dispose();
+                    host.Services.GetRequiredService<SettingsViewModel>().Dispose();
+                }
+
                 // Stop off the UI thread for the same reason the host is started there.
                 Task.Run(() => host.StopAsync(TimeSpan.FromSeconds(5))).GetAwaiter().GetResult();
                 host.Dispose();

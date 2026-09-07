@@ -148,6 +148,9 @@ public partial class FlyoutWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        // Marks the flyout as not visible, same as HideFlyout, so RefreshCharts guards itself if a chart load
+        // completes after the window closes during shutdown.
+        _viewModel.OnHidden();
         _theme.ThemeChanged -= OnThemeChanged;
         _tick.Stop();
         base.OnClosed(e);
