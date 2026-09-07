@@ -18,6 +18,7 @@ dotnet build --configuration Release            # warnings are errors in Release
 dotnet test --configuration Release --no-build
 dotnet format --verify-no-changes               # CI fails on any diff
 dotnet run --project src/ClaudeTrayApp
+dotnet run --project src/ClaudeTrayApp -- --probe    # one live fetch, redacted summary in the log, exit 0 or 2
 dotnet publish src/ClaudeTrayApp -c Release -r win-x64 -o artifacts/publish/win-x64
 dotnet publish src/ClaudeTrayApp -c Release -r win-arm64 -o artifacts/publish/win-arm64
 ```
@@ -28,7 +29,7 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 ## Layout
 
 - `src/ClaudeTrayApp/` WPF app: composition root (`App.xaml.cs`), views, viewmodels, `Theme.xaml`. The only project that references WPF.
-- `src/ClaudeTrayApp.Core/` domain model, providers (OAuth usage, JSONL analytics), aggregation, pricing, history store. No UI references, ever.
+- `src/ClaudeTrayApp.Core/` `Domain/` (snapshot, windows, humaniser), `Credentials/`, `Providers/` (OAuth endpoint, parser), `Polling/` (state machine, poller), `Cache/`, `Security/` (redactor), `Diagnostics/`, `ClaudeCode/` (version detection). JSONL analytics, aggregation, pricing and history arrive in M5. No UI references, ever.
 - `tests/ClaudeTrayApp.Core.Tests/` xunit.v3 + Shouldly + NSubstitute. Fixture files with fake tokens and synthetic sessions only.
 - `docs/` `architecture.md`, `data-sources.md`, `diagrams/` (Mermaid sources), `screenshots/`.
 - `.github/` `workflows/ci.yml` (build, test, format), `workflows/release.yml` (M8), Dependabot, issue templates.
@@ -68,6 +69,8 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 - Access tokens live about eight hours; Claude Code refreshes them when used. Expect 401 and show a re-authenticate hint instead of failing.
 - JSONL session logs are not a contract. One API response is written as several `assistant` lines sharing `message.id` and `requestId`; dedupe them or costs are overcounted several-fold.
 - The Claude Code CLI on PATH and the desktop app's bundled Claude Code can report different versions.
+- Extra-usage amounts arrive in minor units (`decimal_places`, or `amount_minor` plus `exponent` in the `spend` block). Codename windows such as `nimbus_quill` appear alongside the documented ones and render like any unknown key.
+- The endpoint's own `limits[].severity` said `warning` at 86 %, below this app's 70/90 status thresholds; the mapping from `limits[].kind` to window keys is unverified, so `limits` is not parsed yet.
 
 ## Before you start
 
@@ -78,4 +81,4 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 
 ## Milestones
 
-M1 scaffold (done) · M2 core domain, OAuth provider, cache, backoff · M3 tray icon · M4 flyout · M5 JSONL analytics, history, aggregation · M6 charts · M7 settings, autostart, notifications, single instance · M8 release pipeline, docs, v0.1.0
+M1 scaffold (done) · M2 core domain, OAuth provider, cache, backoff (done, live probe verified 2026-09-07) · M3 tray icon · M4 flyout · M5 JSONL analytics, history, aggregation · M6 charts · M7 settings, autostart, notifications, single instance · M8 release pipeline, docs, v0.1.0

@@ -10,8 +10,9 @@ local token/cost analytics.
 > **Unofficial tool.** Claude Usage Tray is a community project. It is not affiliated with, endorsed by, or supported
 > by Anthropic. It relies on an undocumented endpoint that can change or stop working at any time.
 
-> **Status: pre-release, under construction.** Milestone 1 of 8 (solution scaffold, CI, docs) is complete. The tray
-> icon, flyout, analytics and charts follow in the next milestones. No release exists yet; see
+> **Status: pre-release, under construction.** Milestones 1 and 2 of 8 are complete: solution scaffold, CI, docs,
+> and the data layer (credential discovery, the usage endpoint provider with backoff and cache, verified live). The
+> tray icon, flyout, local analytics and charts follow next. No release exists yet; see
 > [CHANGELOG.md](CHANGELOG.md) for progress.
 
 <!-- Screenshot and GIF land in docs/screenshots/ with milestone 8. -->
@@ -107,6 +108,7 @@ The full probed schemas and the rules derived from them are in [docs/data-source
 | "Rate limited" or a stale marker | The endpoint returned 429 | Wait. The app backs off automatically; do not lower the poll interval. |
 | Percentages unavailable, tokens still shown | Endpoint or network down | Local analytics keep working; percentages return when the endpoint does. |
 | "Cost unknown" | Model id missing from `pricing.json` | Update the pricing file or point Settings at your own. |
+| Want to check the setup end to end | | Run `ClaudeTrayApp.exe --probe`. It fetches once, writes a redacted summary to the newest log and exits with code 0 on success or 2 on failure. |
 | Anything else | See the logs | `%LOCALAPPDATA%\ClaudeTrayApp\logs` (tokens are redacted). |
 
 ## Architecture

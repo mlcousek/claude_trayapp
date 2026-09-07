@@ -150,6 +150,7 @@ sequenceDiagram
 
 ## Status
 
-Milestone 1 delivers the scaffold: solution layout, build settings, CI, `AppPaths` and the composition root with
-file logging. Providers, aggregator, history store and the UI arrive in milestones 2 to 7 and this document is
-updated with each of them.
+Milestones 1 and 2 are delivered: solution layout, build settings, CI, `AppPaths`, the composition root with file
+logging, the usage domain, credential discovery, the OAuth usage provider, the polling state machine and the
+snapshot cache, verified against the live endpoint. The tray icon, flyout, JSONL analytics provider, aggregator,
+history store and charts arrive in milestones 3 to 7 and this document is updated with each of them.

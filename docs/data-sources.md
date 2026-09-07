@@ -41,7 +41,46 @@ User-Agent: claude-code/<version>
 ```
 
 - Without the `User-Agent` header requests land in an aggressively rate-limited bucket and stay stuck on 429. The version is read from `claude --version` at runtime (with a timeout) and falls back to a constant in code. On the probed machine the CLI reported 2.1.224 while the desktop app's bundled Claude Code logged 2.1.260.
-- Response schema: captured in M2. The provider logs the response shape once at Debug (token redacted) so the schema can be adapted; unknown window keys still render with a humanised name derived from the key.
+- The provider logs the response shape once at Debug (token redacted, string values hidden) so a schema drift can be diagnosed from the log; `--probe` logs it with short string values included.
+
+### Response schema (probed live 2026-09-07, values synthetic)
+
+```json
+{
+  "five_hour":            { "utilization": 51.0, "resets_at": "2026-09-07T16:30:00.961652+00:00", "limit_dollars": null, "used_dollars": null, "remaining_dollars": null, "locked_reason": null },
+  "seven_day":            { "utilization": 9.0,  "resets_at": "2026-09-11T14:00:00.961672+00:00", "limit_dollars": null, "used_dollars": null, "remaining_dollars": null, "locked_reason": null },
+  "seven_day_opus": null, "seven_day_sonnet": null, "seven_day_oauth_apps": null, "seven_day_cowork": null, "seven_day_omelette": null,
+  "tangelo": null, "iguana_necktie": null, "omelette_promotional": null, "cinder_cove": null, "copper_kite": null, "amber_ladder": null, "juniper_tide": null,
+  "nimbus_quill":         { "utilization": 0.0, "resets_at": null, "limit_dollars": null, "used_dollars": null, "remaining_dollars": null, "locked_reason": null },
+  "extra_usage": {
+    "is_enabled": true, "monthly_limit": 10000, "used_credits": 0.0, "utilization": null, "currency": "USD", "decimal_places": 2,
+    "disabled_reason": null, "user_disabled": false, "spend_limit_reached": false, "credits_ever_enabled": true, "daily": null, "weekly": null
+  },
+  "limits": [ { "kind": "session", "group": "session", "percent": 51, "severity": "warning", "resets_at": "...", "scope": null, "is_active": true } ],
+  "spend": {
+    "used":  { "amount_minor": 0,     "currency": "USD", "exponent": 2 },
+    "limit": { "amount_minor": 10000, "currency": "USD", "exponent": 2 },
+    "percent": 0, "severity": "normal", "enabled": true, "disabled_reason": null,
+    "cap": { "money": null, "credits": { "amount_minor": 10000, "exponent": 2 } },
+    "balance": null, "auto_reload": null, "disclaimer": "<113 chars>", "can_purchase_credits": false, "can_toggle": false
+  },
+  "member_dashboard_available": false
+}
+```
+
+What the parser makes of it:
+
+- Every top-level object with a `utilization` number is a window. `utilization` is a percentage on a 0 to 100 scale (float). Windows that do not apply to the account are `null` and skipped. Besides the documented `five_hour`, `seven_day`, `seven_day_opus`, `seven_day_sonnet` and `seven_day_oauth_apps`, the response carries codename windows (`nimbus_quill`, `tangelo`, ...); when one is non-null it renders like any unknown key, sorted after the known ones.
+- `resets_at` is ISO-8601 with microseconds and an explicit offset; it is `null` while a window is unused.
+- `locked_reason` is a string when a window is locked; the UI must show it, whatever the percentage says.
+- `extra_usage` amounts (`monthly_limit`, `used_credits`) are in minor units; divide by `10^decimal_places`. The `spend` block repeats the same money as `amount_minor` plus `exponent` and fills any value `extra_usage` leaves null. Without either block there is no overage.
+- `limits` is a parallel, self-describing list (`kind`, `group`, `percent`, `severity`, `resets_at`, `is_active`). It is not parsed yet: only the first element's shape is known and the `kind` to window mapping is unverified. `severity` was `warning` at 86 %, so Anthropic's own thresholds sit below this app's 70/90 defaults; revisit when the mapping is confirmed.
+- No plan tier is present in the body; `subscriptionType` from the credentials file is used instead.
+- Response time was well under a second; one request per poll.
+
+### Related local caches (not used yet)
+
+`%USERPROFILE%\.claude.json` (a file, distinct from the `.claude` folder) holds `oauthAccount` with `emailAddress`, `displayName`, `organizationName`, `hasExtraUsageEnabled`, `billingType` and `organizationRateLimitTier`, which the flyout header can read (M4). It also holds `cachedUsageUtilization` (`fetchedAtMs` plus the response above under `utilization`), Claude Code's own cache, which could serve as an offline fallback but is often days old. Both are read-only for this app; the file also contains unrelated settings and must never be written.
 
 ### Polling discipline
 
