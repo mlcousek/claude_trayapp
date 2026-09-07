@@ -24,6 +24,12 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
+  <!-- Published output ships without symbol files, for every project in the publish graph. -->
+  <PropertyGroup Condition="'$(_IsPublishing)' == 'true'">
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
   <!-- Assembly metadata. -->
   <PropertyGroup>
     <Product>Claude Usage Tray</Product>
