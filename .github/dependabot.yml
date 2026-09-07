@@ -28,6 +28,9 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "Serilog.Extensions.Hosting"
         update-types: ["version-update:semver-major"]
+      # H.NotifyIcon.Wpf 2.4 dropped net9.0-windows; 2.3.x is the last line that targets it.
+      - dependency-name: "H.NotifyIcon.Wpf"
+        versions: [">=2.4.0"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

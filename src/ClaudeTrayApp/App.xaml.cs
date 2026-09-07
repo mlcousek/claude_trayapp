@@ -11,6 +11,9 @@ using ClaudeTrayApp.Core.Diagnostics;
 using ClaudeTrayApp.Core.Polling;
 using ClaudeTrayApp.Core.Providers;
 using ClaudeTrayApp.Hosting;
+using ClaudeTrayApp.Theming;
+using ClaudeTrayApp.Tray;
+using ClaudeTrayApp.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -24,23 +27,31 @@ public partial class App : Application
     /// <summary>Command-line switch: fetch usage once, log a redacted summary and exit. Useful for checking a setup.</summary>
     public const string ProbeSwitch = "--probe";
 
+    /// <summary>Command-line switch followed by a folder: write tray icon contact sheets there and exit (development aid).</summary>
+    public const string RenderIconsSwitch = "--render-icons";
+
     private IHost? _host;
+    private ThemeManager? _theme;
+    private TrayIconController? _tray;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
         var probe = e.Args.Contains(ProbeSwitch, StringComparer.OrdinalIgnoreCase);
+        var renderIconsDirectory = ArgumentAfter(e.Args, RenderIconsSwitch);
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "unknown";
         var paths = AppPaths.FromEnvironment();
         Directory.CreateDirectory(paths.LogsDirectory);
         Log.Logger = BuildLogger(paths);
+        RegisterCrashLogging();
 
         try
         {
             var builder = Host.CreateApplicationBuilder();
             builder.Logging.ClearProviders();
             builder.Services.AddSerilog();
-            ConfigureServices(builder.Services, paths, probe);
+            ConfigureServices(builder.Services, paths, version, headless: probe || renderIconsDirectory is not null);
             _host = builder.Build();
             _host.Start();
         }
@@ -51,7 +62,6 @@ public partial class App : Application
             return;
         }
 
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "unknown";
         Log.Information("Claude Usage Tray {Version} started; logs in {LogsDirectory}", version, paths.LogsDirectory);
 
         if (probe)
@@ -61,32 +71,52 @@ public partial class App : Application
             return;
         }
 
-        // Milestone 2 ships providers and polling; the tray icon arrives in milestone 3.
-        // Until then the process exits right away instead of lingering invisibly.
-        Log.Information("No UI yet (milestone 2). Run with {Switch} to test the usage endpoint. Shutting down", ProbeSwitch);
-        Shutdown(0);
+        try
+        {
+            _theme = _host.Services.GetRequiredService<ThemeManager>();
+            _theme.Apply();
+
+            if (renderIconsDirectory is not null)
+            {
+                var files = IconSheetRenderer.RenderSheets(renderIconsDirectory, _theme.GetTrayPalette(AppTheme.Dark), _theme.GetTrayPalette(AppTheme.Light));
+                Log.Information("Rendered tray icon sheets: {Files}", string.Join(", ", files));
+                Shutdown(0);
+                return;
+            }
+
+            _tray = _host.Services.GetRequiredService<TrayIconController>();
+            Log.Information("Tray icon ready. Left-click opens the flyout (milestone 4); right-click for the menu");
+        }
+        catch (Exception ex)
+        {
+            Log.Fatal(ex, "The tray icon could not be created");
+            Shutdown(1);
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
         try
         {
+            _tray?.Dispose();
+            _theme?.Dispose();
             _host?.StopAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
             _host?.Dispose();
         }
         catch (Exception ex)
         {
-            Log.Warning(ex, "Host did not stop cleanly");
+            Log.Warning(ex, "Shutdown was not clean");
         }
         finally
         {
+            Log.Information("Claude Usage Tray exited with code {ExitCode}", e.ApplicationExitCode);
             Log.CloseAndFlush();
         }
 
         base.OnExit(e);
     }
 
-    private static void ConfigureServices(IServiceCollection services, AppPaths paths, bool probe)
+    private void ConfigureServices(IServiceCollection services, AppPaths paths, string version, bool headless)
     {
         services.AddSingleton(paths);
         services.AddSingleton(TimeProvider.System);
@@ -99,7 +129,19 @@ public partial class App : Application
         services.AddSingleton<ISnapshotCache>(sp => new SnapshotCache(paths.CacheFile, sp.GetRequiredService<ILogger<SnapshotCache>>()));
         services.AddSingleton<UsagePoller>();
 
-        if (!probe)
+        services.AddSingleton<Application>(this);
+        services.AddSingleton<ThemeManager>();
+        services.AddSingleton(sp => new TrayIconViewModel(
+            sp.GetRequiredService<UsagePoller>(),
+            paths,
+            sp.GetRequiredService<TimeProvider>(),
+            Dispatcher,
+            () => Shutdown(0),
+            version,
+            sp.GetRequiredService<ILogger<TrayIconViewModel>>()));
+        services.AddSingleton<TrayIconController>();
+
+        if (!headless)
         {
             services.AddHostedService<UsagePollerService>();
         }
@@ -144,6 +186,32 @@ public partial class App : Application
 
         Log.Warning("Probe failed: {Status}. {Message}", result.Status, result.Message);
         return 2;
+    }
+
+    /// <summary>Every crash path ends in the log with a redacted message, so a failure is never silent.</summary>
+    private void RegisterCrashLogging()
+    {
+        DispatcherUnhandledException += (_, e) =>
+        {
+            Log.Fatal(e.Exception, "Unhandled exception on the UI thread");
+            Log.CloseAndFlush();
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            Log.Fatal(e.ExceptionObject as Exception, "Unhandled exception (terminating: {Terminating})", e.IsTerminating);
+            Log.CloseAndFlush();
+        };
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            Log.Error(e.Exception, "Unobserved task exception");
+            e.SetObserved();
+        };
+    }
+
+    private static string? ArgumentAfter(string[] args, string switchName)
+    {
+        var index = Array.FindIndex(args, a => string.Equals(a, switchName, StringComparison.OrdinalIgnoreCase));
+        return index >= 0 && index + 1 < args.Length ? args[index + 1] : null;
     }
 
     private static Serilog.Core.Logger BuildLogger(AppPaths paths) => new LoggerConfiguration()

@@ -5,6 +5,8 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <!-- LibraryImport-generated interop needs this; no hand-written unsafe code exists. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>ClaudeTrayApp</RootNamespace>
     <AssemblyName>ClaudeTrayApp</AssemblyName>
     <IsPackable>false</IsPackable>
@@ -23,6 +25,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="H.NotifyIcon.Wpf" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Serilog.Extensions.Hosting" />
     <PackageReference Include="Serilog.Sinks.File" />
@@ -30,6 +34,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ClaudeTrayApp.Core\ClaudeTrayApp.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ClaudeTrayApp.Tests" />
   </ItemGroup>
 
 </Project>

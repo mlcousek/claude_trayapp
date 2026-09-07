@@ -1,0 +1,13 @@
+<!-- Light palette: same roles as the dark one, tuned so text and status colours keep at least 4.5:1 on the surface. -->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Color x:Key="SurfaceColor">#FAF9F5</Color>
+    <Color x:Key="SurfaceElevatedColor">#FFFFFF</Color>
+    <Color x:Key="HairlineColor">#E4E1DA</Color>
+    <Color x:Key="TextPrimaryColor">#1F1E1D</Color>
+    <Color x:Key="TextSecondaryColor">#6B6860</Color>
+    <Color x:Key="AccentColor">#C4633F</Color>
+    <Color x:Key="OkColor">#5C8543</Color>
+    <Color x:Key="WarnColor">#9C7420</Color>
+    <Color x:Key="DangerColor">#A8392F</Color>
+</ResourceDictionary>

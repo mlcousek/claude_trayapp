@@ -1,0 +1,13 @@
+<!-- Dark palette: warm neutrals, one accent. Only colours live here; brushes and type are in Theme.xaml. -->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Color x:Key="SurfaceColor">#1F1E1D</Color>
+    <Color x:Key="SurfaceElevatedColor">#262624</Color>
+    <Color x:Key="HairlineColor">#3A3937</Color>
+    <Color x:Key="TextPrimaryColor">#FAF9F5</Color>
+    <Color x:Key="TextSecondaryColor">#A3A096</Color>
+    <Color x:Key="AccentColor">#D97757</Color>
+    <Color x:Key="OkColor">#7BA05B</Color>
+    <Color x:Key="WarnColor">#D4A24C</Color>
+    <Color x:Key="DangerColor">#C1554A</Color>
+</ResourceDictionary>
