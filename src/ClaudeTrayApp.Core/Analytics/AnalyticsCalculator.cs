@@ -27,7 +27,7 @@ public sealed class AnalyticsCalculator
     {
         var pricing = _pricing();
         var localNow = TimeZoneInfo.ConvertTime(now, _zone);
-        var dayStart = new DateTimeOffset(localNow.Date, localNow.Offset);
+        var dayStart = LocalMidnightUtc(localNow.Date);
 
         var today = Period(dayStart, now, pricing);
         var projects = _store.TopProjects(dayStart, now, 3);
@@ -35,9 +35,21 @@ public sealed class AnalyticsCalculator
         return new LocalAnalytics(now, today, projects, block, pricing, _store.CountEvents());
     }
 
-    /// <summary>Totals per local day, used by the daily chart.</summary>
+    /// <summary>
+    /// Totals per local day, used by the daily chart. Known limitation: the store buckets the whole
+    /// <paramref name="from"/>-<paramref name="to"/> range (up to 30 days) using one fixed UTC offset computed at
+    /// <paramref name="to"/>, so rows within a day or two of a DST transition can land in the wrong local day.
+    /// </summary>
     public IReadOnlyList<DailyModelTotals> Daily(DateTimeOffset from, DateTimeOffset to) =>
         _store.DailyTotals(from, to, _zone.GetUtcOffset(to));
+
+    /// <summary>UTC instant of local midnight on <paramref name="localDate"/>, resolved in <see cref="_zone"/> so a
+    /// DST transition between midnight and "now" cannot shift the day boundary (unlike reusing now's offset).</summary>
+    private DateTimeOffset LocalMidnightUtc(DateTime localDate)
+    {
+        var midnightUnspecified = DateTime.SpecifyKind(localDate, DateTimeKind.Unspecified);
+        return new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(midnightUnspecified, _zone), TimeSpan.Zero);
+    }
 
     internal PeriodAnalytics Period(DateTimeOffset from, DateTimeOffset to, PricingTable pricing)
     {

@@ -100,4 +100,84 @@ public class AnalyticsCalculatorTests
     [Fact]
     public void No_tokens_and_no_reset_means_no_block() =>
         Calculator(Store()).Compute(null, Now).CurrentBlock.ShouldBeNull();
+
+    /// <summary>
+    /// A synthetic zone, portable across machines and CI, that springs forward by 1 h at 2026-03-15 02:00 local
+    /// (standard offset +1h, daylight offset +2h from that instant). Local midnight on 2026-03-15 is still in
+    /// standard time (+1h); by the time "now" is evaluated the zone has already sprung forward to +2h.
+    /// </summary>
+    private static TimeZoneInfo SpringForwardZone()
+    {
+        var timeOfDay = new DateTime(1, 1, 1, 2, 0, 0);
+        var transition = TimeZoneInfo.TransitionTime.CreateFixedDateRule(timeOfDay, 3, 15);
+        var transitionBack = TimeZoneInfo.TransitionTime.CreateFixedDateRule(timeOfDay, 11, 1);
+        var rule = TimeZoneInfo.AdjustmentRule.CreateAdjustmentRule(
+            new DateTime(2026, 1, 1),
+            new DateTime(2026, 12, 31),
+            TimeSpan.FromHours(1),
+            transition,
+            transitionBack);
+        return TimeZoneInfo.CreateCustomTimeZone("Synthetic/SpringForward", TimeSpan.FromHours(1), "Synthetic Spring-Forward", "Synthetic Standard", "Synthetic Daylight", [rule]);
+    }
+
+    [Fact]
+    public void Todays_totals_include_an_event_just_after_local_midnight_across_a_spring_forward_transition()
+    {
+        var zone = SpringForwardZone();
+
+        // Local midnight on the transition day is +1h (standard); "now" (08:00 local) is after the 02:00 jump,
+        // so it is +2h (daylight). True UTC local midnight is therefore 2026-03-14T23:00:00Z, not 2026-03-14T22:00:00Z
+        // (what reusing now's +2h offset for midnight would wrongly compute).
+        var localMidnightUtc = new DateTimeOffset(2026, 3, 14, 23, 0, 0, TimeSpan.Zero);
+        var now = new DateTimeOffset(2026, 3, 15, 10, 0, 0, TimeSpan.FromHours(2)); // 08:00 local, daylight offset
+
+        var store = Substitute.For<IAnalyticsStore>();
+        store.TotalsByModel(Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>()).Returns([]);
+        store.TopProjects(Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>(), Arg.Any<int>()).Returns([]);
+        store.CountEvents().Returns(0);
+
+        new AnalyticsCalculator(store, () => Pricing, zone).Compute(null, now);
+
+        // The DST-safe day boundary must be true local midnight in UTC, not now's offset applied to today's date
+        // (which would be 2026-03-14T22:00:00Z - one hour too early, wrongly including an hour of yesterday).
+        store.Received().TotalsByModel(localMidnightUtc, now);
+        store.Received().TopProjects(localMidnightUtc, now, 3);
+    }
+
+    /// <summary>
+    /// End-to-end version of the spring-forward test above against a real store: reusing "now"'s +2h (daylight)
+    /// offset for midnight would compute a day boundary of 2026-03-14T22:00:00Z, one hour earlier than the true
+    /// boundary of 2026-03-14T23:00:00Z (midnight is still standard time, +1h, before that day's 02:00 jump). That
+    /// wrongly pulls an hour of *yesterday* (22:00-23:00Z, still 23:00-24:00 local standard time on the 14th) into
+    /// "today" - the double-counting failure mode. An event seeded in exactly that disputed hour must be excluded
+    /// once the boundary is computed correctly, while an event just after the true boundary is still included.
+    /// </summary>
+    [Fact]
+    public void Todays_totals_exclude_a_pre_midnight_event_and_include_a_post_midnight_one_across_a_spring_forward()
+    {
+        var zone = SpringForwardZone();
+        var now = new DateTimeOffset(2026, 3, 15, 10, 0, 0, TimeSpan.FromHours(2)); // 08:00 UTC = 10:00 local (daylight)
+        var directory = Path.Combine(Path.GetTempPath(), "ClaudeTrayApp.Tests", Guid.NewGuid().ToString("N"));
+        var store = new SqliteStore(Path.Combine(directory, "history.db"));
+        try
+        {
+            store.InsertEvents([
+                // 22:30Z on the 14th: within the disputed hour, still "yesterday" in true local time. A correct
+                // fix must exclude it from today's totals.
+                new UsageEvent("msg-disputed", "req-disputed", new DateTimeOffset(2026, 3, 14, 22, 30, 0, TimeSpan.Zero), "claude-opus-5", null, null, 111, 0, 0, 0, 0),
+                // 23:30Z on the 14th: just after the true local midnight (23:00Z). Must be included.
+                new UsageEvent("msg-today", "req-today", new DateTimeOffset(2026, 3, 14, 23, 30, 0, TimeSpan.Zero), "claude-opus-5", null, null, 222, 0, 0, 0, 0),
+            ]);
+
+            var today = new AnalyticsCalculator(store, () => Pricing, zone).Compute(null, now).Today;
+
+            today.Tokens.Input.ShouldBe(222);
+            today.Tokens.Messages.ShouldBe(1);
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
 }
