@@ -57,7 +57,7 @@ public sealed class UsagePoller : IDisposable
         }
 
         _initialised = true;
-        var cached = await _cache.LoadAsync(cancellationToken);
+        var cached = await _cache.LoadAsync(cancellationToken).ConfigureAwait(false);
         if (cached is not null)
         {
             Publish(PollStatus.Initial(cached));
@@ -68,11 +68,11 @@ public sealed class UsagePoller : IDisposable
     /// <summary>Runs until cancelled.</summary>
     public async Task RunAsync(CancellationToken cancellationToken)
     {
-        await InitialiseAsync(cancellationToken);
+        await InitialiseAsync(cancellationToken).ConfigureAwait(false);
         while (!cancellationToken.IsCancellationRequested)
         {
-            var delay = await FetchOnceAsync(cancellationToken);
-            await WaitAsync(delay, cancellationToken);
+            var delay = await FetchOnceAsync(cancellationToken).ConfigureAwait(false);
+            await WaitAsync(delay, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -84,7 +84,7 @@ public sealed class UsagePoller : IDisposable
         UsageFetchResult result;
         try
         {
-            result = await _provider.FetchAsync(cancellationToken);
+            result = await _provider.FetchAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -101,7 +101,7 @@ public sealed class UsagePoller : IDisposable
 
         if (result.IsSuccess && result.Snapshot is { } snapshot)
         {
-            await _cache.SaveAsync(snapshot, cancellationToken);
+            await _cache.SaveAsync(snapshot, cancellationToken).ConfigureAwait(false);
             _logger.LogInformation("Usage updated: {Summary}", UsageSnapshotFormatter.Describe(snapshot, completedAt));
         }
         else
@@ -133,17 +133,17 @@ public sealed class UsagePoller : IDisposable
         var timer = Task.Delay(delay, _clock, cancellationToken);
         var refresh = _refreshSignal.WaitAsync(waitCancellation.Token);
 
-        var finished = await Task.WhenAny(timer, refresh);
+        var finished = await Task.WhenAny(timer, refresh).ConfigureAwait(false);
         if (finished == refresh)
         {
             _logger.LogDebug("Manual refresh requested");
-            await refresh;
+            await refresh.ConfigureAwait(false);
             return;
         }
 
         // The timer won: drop the pending wait so a later release is not consumed by a stale waiter.
-        await waitCancellation.CancelAsync();
-        await timer;
+        await waitCancellation.CancelAsync().ConfigureAwait(false);
+        await timer.ConfigureAwait(false);
     }
 
     private void Publish(PollStatus status)

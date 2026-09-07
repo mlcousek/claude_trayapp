@@ -43,9 +43,12 @@ public sealed class SnapshotCache : ISnapshotCache
 
         try
         {
-            await using var stream = File.OpenRead(_filePath);
-            var snapshot = await JsonSerializer.DeserializeAsync<UsageSnapshot>(stream, SerializerOptions, cancellationToken);
-            return snapshot is null ? null : snapshot with { Source = UsageSource.Cache };
+            var stream = File.OpenRead(_filePath);
+            await using (stream.ConfigureAwait(false))
+            {
+                var snapshot = await JsonSerializer.DeserializeAsync<UsageSnapshot>(stream, SerializerOptions, cancellationToken).ConfigureAwait(false);
+                return snapshot is null ? null : snapshot with { Source = UsageSource.Cache };
+            }
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
         {
@@ -67,9 +70,10 @@ public sealed class SnapshotCache : ISnapshotCache
                 Directory.CreateDirectory(directory);
             }
 
-            await using (var stream = File.Create(temporary))
+            var stream = File.Create(temporary);
+            await using (stream.ConfigureAwait(false))
             {
-                await JsonSerializer.SerializeAsync(stream, snapshot, SerializerOptions, cancellationToken);
+                await JsonSerializer.SerializeAsync(stream, snapshot, SerializerOptions, cancellationToken).ConfigureAwait(false);
             }
 
             File.Move(temporary, _filePath, overwrite: true);

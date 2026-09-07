@@ -31,7 +31,7 @@ public sealed class CredentialFileSource : ICredentialSource
         byte[] bytes;
         try
         {
-            bytes = await File.ReadAllBytesAsync(_filePath, cancellationToken);
+            bytes = await File.ReadAllBytesAsync(_filePath, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

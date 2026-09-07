@@ -36,10 +36,10 @@ public sealed partial class ClaudeCodeVersionDetector : IClaudeCodeVersionDetect
             return cached;
         }
 
-        await _gate.WaitAsync(cancellationToken);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return _cached ??= await DetectAsync(cancellationToken);
+            return _cached ??= await DetectAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -75,8 +75,8 @@ public sealed partial class ClaudeCodeVersionDetector : IClaudeCodeVersionDetect
             timeout.CancelAfter(DetectionTimeout);
             try
             {
-                var output = await process.StandardOutput.ReadToEndAsync(timeout.Token);
-                await process.WaitForExitAsync(timeout.Token);
+                var output = await process.StandardOutput.ReadToEndAsync(timeout.Token).ConfigureAwait(false);
+                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
                 var version = ParseVersion(output);
                 if (version is null)
                 {

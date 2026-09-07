@@ -51,7 +51,7 @@ public sealed class OAuthUsageProvider : IUsageProvider
 
     public async Task<UsageFetchResult> FetchAsync(CancellationToken cancellationToken)
     {
-        var lookup = await _credentials.ReadAsync(cancellationToken);
+        var lookup = await _credentials.ReadAsync(cancellationToken).ConfigureAwait(false);
         if (lookup.Status != CredentialStatus.Found || lookup.Credentials is null)
         {
             return UsageFetchResult.Failed(UsageFetchStatus.NoCredentials, lookup.Detail ?? $"No Claude Code credentials ({_credentials.Description}).");
@@ -64,7 +64,7 @@ public sealed class OAuthUsageProvider : IUsageProvider
             return UsageFetchResult.Failed(UsageFetchStatus.TokenExpired, "Claude Code sign-in has expired. Open Claude Code to refresh it.");
         }
 
-        var version = await _versions.GetVersionAsync(cancellationToken);
+        var version = await _versions.GetVersionAsync(cancellationToken).ConfigureAwait(false);
         using var request = new HttpRequestMessage(HttpMethod.Get, _endpoint);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials.AccessToken);
         request.Headers.TryAddWithoutValidation(BetaHeaderName, BetaHeaderValue);
@@ -74,7 +74,7 @@ public sealed class OAuthUsageProvider : IUsageProvider
         HttpResponseMessage response;
         try
         {
-            response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         }
         catch (HttpRequestException ex)
         {
@@ -112,7 +112,7 @@ public sealed class OAuthUsageProvider : IUsageProvider
             string body;
             try
             {
-                body = await response.Content.ReadAsStringAsync(cancellationToken);
+                body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is HttpRequestException or IOException)
             {

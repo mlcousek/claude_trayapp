@@ -226,3 +226,9 @@ indent_size = 4
 # ---------------------------------------------------------------------------
 [tests/**/*.cs]
 dotnet_diagnostic.CA1707.severity = none
+
+# ---------------------------------------------------------------------------
+# Core is a library: every await must ConfigureAwait(false) so callers on a UI thread never deadlock.
+# ---------------------------------------------------------------------------
+[src/ClaudeTrayApp.Core/**/*.cs]
+dotnet_diagnostic.CA2007.severity = warning

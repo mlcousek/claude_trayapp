@@ -25,7 +25,7 @@ public sealed class CompositeCredentialSource : ICredentialSource
         CredentialLookup? best = null;
         foreach (var source in _sources)
         {
-            var lookup = await source.ReadAsync(cancellationToken);
+            var lookup = await source.ReadAsync(cancellationToken).ConfigureAwait(false);
             if (lookup.Status == CredentialStatus.Found)
             {
                 return lookup;

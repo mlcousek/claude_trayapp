@@ -90,6 +90,24 @@ public class UsagePollerTests
     }
 
     [Fact]
+    public async Task The_loop_stops_promptly_when_cancelled_while_waiting()
+    {
+        var (poller, provider, _, _, _) = Create();
+        provider.FetchAsync(Arg.Any<CancellationToken>()).Returns(UsageFetchResult.Success(Snapshot(1)));
+        using var cancellation = new CancellationTokenSource();
+
+        var loop = poller.RunAsync(cancellation.Token);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
+        loop.IsCompleted.ShouldBeFalse();
+
+        await cancellation.CancelAsync();
+        var finished = await Task.WhenAny(loop, Task.Delay(2000, TestContext.Current.CancellationToken));
+
+        finished.ShouldBe(loop);
+        await Should.ThrowAsync<OperationCanceledException>(() => loop);
+    }
+
+    [Fact]
     public async Task Cancellation_propagates_out_of_a_fetch()
     {
         var (poller, provider, _, _, _) = Create();
