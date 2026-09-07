@@ -18,7 +18,8 @@ internal static class FlyoutCapture
         ArgumentNullException.ThrowIfNull(window);
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        var root = window.Content as Border;
+        // FlyoutWindow's content is a Border directly; SettingsWindow wraps its Border in a ScrollViewer.
+        var root = window.Content as Border ?? (window.Content as ScrollViewer)?.Content as Border;
         var previous = root?.Background;
         if (root is not null && window.TryFindResource("SurfaceBrush") is Brush surface)
         {
