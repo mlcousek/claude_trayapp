@@ -1,0 +1,46 @@
+name: Bug report
+description: Something is wrong or crashes.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Never paste tokens, your `.credentials.json`, or unredacted logs. Logs live in `%LOCALAPPDATA%\ClaudeTrayApp\logs`; the app redacts tokens, but check before attaching.
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      placeholder: "0.1.0 (see About)"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: "Windows 11 24H2 (winver)"
+    validations:
+      required: true
+  - type: input
+    id: claude
+    attributes:
+      label: Claude Code version
+      placeholder: "output of `claude --version`, or 'not installed'"
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log lines (redacted)
+      render: text

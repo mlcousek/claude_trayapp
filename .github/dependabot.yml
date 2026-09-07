@@ -1,0 +1,27 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      microsoft:
+        patterns:
+          - "Microsoft.Extensions.*"
+          - "Microsoft.Data.Sqlite"
+      serilog:
+        patterns:
+          - "Serilog*"
+      tests:
+        patterns:
+          - "xunit*"
+          - "Shouldly"
+          - "NSubstitute"
+          - "Microsoft.NET.Test.Sdk"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
