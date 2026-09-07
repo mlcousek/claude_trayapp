@@ -114,8 +114,8 @@ runs; a file that does not parse is left untouched and reported in the Settings 
 | `historyRetentionDays` | `90` | Percentages and token totals older than this are pruned. **Clear history** empties the local database; the session logs are never touched. |
 | `notifications.enabled` | `false` | Windows notifications when a window passes a threshold. |
 | `notifications.thresholds` | `[80, 95]` | Percentages, each announced at most once per window and period. |
-| `showLocalAnalytics` | `true` | Show tokens, cost, pace and the daily chart derived from the session logs. |
-| `showExtraUsage` | `true` | Show the extra-usage (overage) line when the plan has it enabled. |
+| `showLocalAnalytics` | `false` | Show tokens, cost, pace and the daily chart derived from the session logs. |
+| `showExtraUsage` | `false` | Show the extra-usage (overage) line when the plan has it enabled. |
 | `showInactiveWindows` | `false` | Show codename windows the endpoint reports at 0 % with no reset time (for example "Nimbus quill"). The documented windows are always shown. |
 | `maskEmail` | `true` | Mask the account email in the flyout; the flyout's Show/Hide button changes it too. |
 | `theme` | `"system"` | `system`, `light` or `dark`. |

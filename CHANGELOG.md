@@ -9,9 +9,11 @@ All notable changes to this project are documented here. The format follows
 ### Added
 
 - Settings to hide the extra-usage line (`showExtraUsage`) and to show the endpoint's inactive codename windows (`showInactiveWindows`).
+- An icon of the project's own (a terracotta ring on a dark tile, drawn by `tools/make-icon.py`) for the executable and the settings window.
 
 ### Changed
 
+- Defaults: the flyout now starts with the endpoint's numbers only. `showLocalAnalytics` and `showExtraUsage` default to off (`maskEmail` stays on); turn them on in Settings.
 - Codename windows the endpoint reports at 0 % with no reset time (for example "Nimbus quill") are hidden by default in the flyout, the tooltip and the history chart; the documented windows are always shown.
 
 ## [0.1.0] - 2026-09-07

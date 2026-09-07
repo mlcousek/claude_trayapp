@@ -8,6 +8,8 @@
     <!-- LibraryImport-generated interop needs this; no hand-written unsafe code exists. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- The project's own icon (tools/make-icon.py); no Anthropic branding. -->
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <RootNamespace>ClaudeTrayApp</RootNamespace>
     <AssemblyName>ClaudeTrayApp</AssemblyName>
     <IsPackable>false</IsPackable>
@@ -36,6 +38,7 @@
   <ItemGroup>
     <!-- Pricing ships next to the binary and is user-editable; prices are never hardcoded. -->
     <None Include="pricing.json" CopyToOutputDirectory="PreserveNewest" />
+    <Resource Include="Assets\app.ico" />
   </ItemGroup>
 
   <ItemGroup>

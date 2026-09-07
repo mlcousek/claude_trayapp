@@ -71,10 +71,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     private bool _maskEmail = true;
 
     [ObservableProperty]
-    private bool _showLocalAnalytics = true;
+    private bool _showLocalAnalytics;
 
     [ObservableProperty]
-    private bool _showExtraUsage = true;
+    private bool _showExtraUsage;
 
     [ObservableProperty]
     private bool _showInactiveWindows;

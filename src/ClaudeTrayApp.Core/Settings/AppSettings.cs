@@ -56,10 +56,11 @@ public sealed record AppSettings
 
     public NotificationSettings Notifications { get; init; } = new();
 
-    public bool ShowLocalAnalytics { get; init; } = true;
+    /// <summary>Show tokens, cost and pace from the session logs; off by default so the flyout starts with the endpoint's numbers only.</summary>
+    public bool ShowLocalAnalytics { get; init; }
 
-    /// <summary>Show the extra-usage (overage) line when the plan has it enabled.</summary>
-    public bool ShowExtraUsage { get; init; } = true;
+    /// <summary>Show the extra-usage (overage) line when the plan has it enabled; off by default.</summary>
+    public bool ShowExtraUsage { get; init; }
 
     /// <summary>Show codename windows the endpoint reports at 0 % with no reset time; hidden by default.</summary>
     public bool ShowInactiveWindows { get; init; }

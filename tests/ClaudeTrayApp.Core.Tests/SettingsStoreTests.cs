@@ -24,7 +24,9 @@ public sealed class SettingsStoreTests : IDisposable
         json.ShouldContain("\"theme\": \"system\"");
         json.ShouldContain("\"trayWindow\": \"auto\"");
         json.ShouldContain("\"thresholds\": [");
-        json.ShouldContain("\"showExtraUsage\": true");
+        json.ShouldContain("\"maskEmail\": true");
+        json.ShouldContain("\"showLocalAnalytics\": false");
+        json.ShouldContain("\"showExtraUsage\": false");
         json.ShouldContain("\"showInactiveWindows\": false");
         store.LastError.ShouldBeNull();
     }
@@ -39,8 +41,8 @@ public sealed class SettingsStoreTests : IDisposable
             ChartRangeHours = 168,
             HistoryRetentionDays = 30,
             Notifications = new NotificationSettings { Enabled = true, Thresholds = [50, 90] },
-            ShowLocalAnalytics = false,
-            ShowExtraUsage = false,
+            ShowLocalAnalytics = true,
+            ShowExtraUsage = true,
             ShowInactiveWindows = true,
             MaskEmail = false,
             Theme = ThemeSetting.Dark,

@@ -35,8 +35,8 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
     private readonly SettingsStore _settings;
     private readonly PricingProvider _pricing;
     private readonly Action _openSettings;
-    private bool _showLocalAnalytics = true;
-    private bool _showExtraUsage = true;
+    private bool _showLocalAnalytics;
+    private bool _showExtraUsage;
     private bool _showInactiveWindows;
     private bool _applyingSettings;
     private PollStatus _status;
