@@ -16,7 +16,6 @@ public sealed class JsonlScanner
     private readonly IAnalyticsStore _store;
     private readonly TimeProvider _clock;
     private readonly ILogger<JsonlScanner> _logger;
-    private readonly TimeSpan? _maxAge;
 
     public JsonlScanner(string projectsDirectory, IAnalyticsStore store, TimeProvider clock, ILogger<JsonlScanner> logger, TimeSpan? maxAge = null)
     {
@@ -25,8 +24,11 @@ public sealed class JsonlScanner
         _store = store;
         _clock = clock;
         _logger = logger;
-        _maxAge = maxAge;
+        MaxAge = maxAge;
     }
+
+    /// <summary>Files older than this are skipped on first sight; null scans everything. Follows the retention setting.</summary>
+    public TimeSpan? MaxAge { get; set; }
 
     public ScanResult Scan(CancellationToken cancellationToken)
     {
@@ -40,7 +42,7 @@ public sealed class JsonlScanner
         var changed = 0;
         var inserted = 0;
         var skipped = 0;
-        var cutoff = _maxAge is { } age ? _clock.GetUtcNow() - age : (DateTimeOffset?)null;
+        var cutoff = MaxAge is { } age ? _clock.GetUtcNow() - age : (DateTimeOffset?)null;
 
         IEnumerable<string> paths;
         try

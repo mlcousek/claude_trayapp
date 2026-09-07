@@ -79,11 +79,20 @@ public sealed record UsageSnapshot(
     /// <summary>The window that drives the tray numeral when the user has not chosen one: the 5-hour window if present, else the first.</summary>
     [JsonIgnore]
     public UsageWindow? PrimaryWindow => FindWindow(WindowKeys.FiveHour) ?? (Windows.Count > 0 ? Windows[0] : null);
+
+    /// <summary>The window a setting names, or <see cref="PrimaryWindow"/> for "auto", an empty key, or a key this snapshot lacks.</summary>
+    public UsageWindow? WindowFor(string? preferredKey) =>
+        string.IsNullOrWhiteSpace(preferredKey) || string.Equals(preferredKey, WindowKeys.Auto, StringComparison.OrdinalIgnoreCase)
+            ? PrimaryWindow
+            : FindWindow(preferredKey) ?? PrimaryWindow;
 }
 
 /// <summary>Window keys the endpoint is known to use. Unknown keys still render; these only drive ordering and defaults.</summary>
 public static class WindowKeys
 {
+    /// <summary>Setting value meaning "let the app choose": the 5-hour window when present, else the first.</summary>
+    public const string Auto = "auto";
+
     public const string FiveHour = "five_hour";
     public const string SevenDay = "seven_day";
     public const string SevenDayOpus = "seven_day_opus";

@@ -4,9 +4,10 @@ using Microsoft.Extensions.Logging;
 
 namespace ClaudeTrayApp.Core.History;
 
-public sealed record HistoryOptions
+/// <summary>Retention in force. Mutable so a settings change applies without rebuilding the recorder.</summary>
+public sealed class HistoryOptions
 {
-    public int RetentionDays { get; init; } = 90;
+    public int RetentionDays { get; set; } = 90;
 }
 
 /// <summary>Appends every fresh snapshot to the history store and prunes rows past the retention window once a day.</summary>
@@ -66,19 +67,25 @@ public sealed class HistoryRecorder : IDisposable
         }
     }
 
-    private void PruneIfDue()
+    /// <summary>Prunes past the retention window right away, for example after the setting changed. Returns rows removed.</summary>
+    public int PruneNow()
     {
         var now = _clock.GetUtcNow();
-        if (now - _lastPrune < TimeSpan.FromHours(24))
-        {
-            return;
-        }
-
         _lastPrune = now;
         var removed = _store.Prune(now.AddDays(-Math.Max(1, _options.RetentionDays)));
         if (removed > 0)
         {
             _logger.LogInformation("Pruned {Rows} history rows older than {Days} days", removed, _options.RetentionDays);
+        }
+
+        return removed;
+    }
+
+    private void PruneIfDue()
+    {
+        if (_clock.GetUtcNow() - _lastPrune >= TimeSpan.FromHours(24))
+        {
+            PruneNow();
         }
     }
 

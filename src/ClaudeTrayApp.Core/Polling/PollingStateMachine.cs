@@ -66,13 +66,20 @@ public sealed record PollStatus(
 /// </summary>
 public sealed class PollingStateMachine
 {
+    private PollingOptions _options;
+
     public PollingStateMachine(PollingOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        Options = options;
+        _options = options;
     }
 
-    public PollingOptions Options { get; }
+    /// <summary>Options in force; replaced when the user changes the poll interval.</summary>
+    public PollingOptions Options
+    {
+        get => _options;
+        set => _options = value ?? throw new ArgumentNullException(nameof(value));
+    }
 
     public static PollStatus BeginFetch(PollStatus current, DateTimeOffset now)
     {
