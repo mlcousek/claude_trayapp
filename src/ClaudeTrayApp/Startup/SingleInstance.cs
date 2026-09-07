@@ -23,18 +23,25 @@ public sealed class SingleInstance : IDisposable
     /// Claims the instance. Returns false when another instance already holds it; that instance has then been asked
     /// to show its flyout and the caller should exit.
     /// </summary>
-    public static bool TryAcquire(out SingleInstance? instance)
+    public static bool TryAcquire(out SingleInstance? instance) => TryAcquire(MutexName, ActivationEventName, out instance);
+
+    /// <summary>
+    /// Same as <see cref="TryAcquire(out SingleInstance?)"/> with the mutex and activation event names injected, so
+    /// tests can exercise the real named-synchronization-object behaviour under unique per-run names instead of the
+    /// production ones (which a real running instance on the same machine may already hold).
+    /// </summary>
+    internal static bool TryAcquire(string mutexName, string activationEventName, out SingleInstance? instance)
     {
-        var mutex = new Mutex(initiallyOwned: true, MutexName, out var createdNew);
+        var mutex = new Mutex(initiallyOwned: true, mutexName, out var createdNew);
         if (!createdNew)
         {
             mutex.Dispose();
-            SignalExisting();
+            SignalExisting(activationEventName);
             instance = null;
             return false;
         }
 
-        var activation = new EventWaitHandle(false, EventResetMode.AutoReset, ActivationEventName);
+        var activation = new EventWaitHandle(false, EventResetMode.AutoReset, activationEventName);
         instance = new SingleInstance(mutex, activation);
         return true;
     }
@@ -73,11 +80,11 @@ public sealed class SingleInstance : IDisposable
         _mutex.Dispose();
     }
 
-    private static void SignalExisting()
+    private static void SignalExisting(string activationEventName)
     {
         try
         {
-            using var activation = EventWaitHandle.OpenExisting(ActivationEventName);
+            using var activation = EventWaitHandle.OpenExisting(activationEventName);
             activation.Set();
         }
         catch (WaitHandleCannotBeOpenedException)
