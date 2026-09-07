@@ -34,6 +34,7 @@
         </DataTemplate>
     </Window.Resources>
     <Border x:Name="RootBorder" Background="{DynamicResource SurfaceBrush}" Padding="20,18,20,14">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
         <StackPanel x:Name="Body">
 
             <!-- Header: plan tier and masked account -->
@@ -91,6 +92,13 @@
                     <TextBlock Style="{StaticResource TitleText}" Margin="0,2,0,0" Text="{Binding StatusSentence}" TextWrapping="Wrap" />
                     <TextBlock Style="{StaticResource BodyText}" Margin="0,8,0,0" Text="{Binding ResetText}" />
                     <TextBlock Style="{StaticResource CaptionText}" Margin="0,1,0,0" Text="{Binding ResetsAtText}" />
+                    <controls:Sparkline Style="{StaticResource HeroSpark}"
+                                        Margin="0,8,0,0"
+                                        Points="{Binding SparkPoints}"
+                                        MinX="{Binding SparkMinX}"
+                                        MaxX="{Binding SparkMaxX}"
+                                        Visibility="{Binding HasSpark, Converter={StaticResource BoolToVisibility}}"
+                                        AutomationProperties.Name="Usage so far in this block" />
                 </StackPanel>
             </Grid>
 
@@ -123,23 +131,32 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Style="{StaticResource BodyText}" Text="{Binding Name}" />
-                            <TextBlock Grid.Column="1"
+                            <controls:Sparkline Grid.Column="1"
+                                                Style="{StaticResource RowSpark}"
+                                                Margin="0,0,12,0"
+                                                VerticalAlignment="Center"
+                                                Points="{Binding SparkPoints}"
+                                                MinX="{Binding SparkMinX}"
+                                                MaxX="{Binding SparkMaxX}"
+                                                Visibility="{Binding HasSpark, Converter={StaticResource BoolToVisibility}}" />
+                            <TextBlock Grid.Column="2"
                                        Style="{StaticResource CaptionText}"
                                        Margin="0,0,10,0"
                                        VerticalAlignment="Center"
                                        Text="{Binding StatusText}"
                                        Visibility="{Binding HasStatusText, Converter={StaticResource BoolToVisibility}}" />
-                            <TextBlock Grid.Column="2" Style="{StaticResource NumeralText}" Text="{Binding PercentText}" />
+                            <TextBlock Grid.Column="3" Style="{StaticResource NumeralText}" Text="{Binding PercentText}" />
                             <ProgressBar Grid.Row="1"
-                                         Grid.ColumnSpan="3"
+                                         Grid.ColumnSpan="4"
                                          Margin="0,6,0,0"
                                          Style="{StaticResource ThinBar}"
                                          Value="{Binding Percent, Mode=OneWay}"
                                          AutomationProperties.Name="{Binding Name}" />
                             <TextBlock Grid.Row="2"
-                                       Grid.ColumnSpan="3"
+                                       Grid.ColumnSpan="4"
                                        Margin="0,5,0,0"
                                        Style="{StaticResource CaptionText}"
                                        Text="{Binding ResetText}" />
@@ -213,6 +230,80 @@
                 </StackPanel>
             </Border>
 
+            <!-- Charts: one at a time, read from the history database; the section stays hidden until there is something to draw -->
+            <Border Margin="0,14,0,0"
+                    Padding="0,12,0,0"
+                    BorderBrush="{DynamicResource HairlineBrush}"
+                    BorderThickness="0,1,0,0"
+                    DataContext="{Binding Charts}"
+                    Visibility="{Binding HasAnyData, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource EyebrowText}" VerticalAlignment="Center" Text="Charts" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" AutomationProperties.Name="Chart to show">
+                            <RadioButton Style="{StaticResource SegmentButton}" GroupName="ChartKind" Content="This block" IsChecked="{Binding IsBlockSelected}" AutomationProperties.Name="This block" />
+                            <RadioButton Style="{StaticResource SegmentButton}" GroupName="ChartKind" Content="History" IsChecked="{Binding IsHistorySelected}" AutomationProperties.Name="History" />
+                            <RadioButton Style="{StaticResource SegmentButton}" GroupName="ChartKind" Content="Daily" IsChecked="{Binding IsDailySelected}" AutomationProperties.Name="Daily" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- This block: recorded 5-hour readings, a dashed projection, and the limit marked when it lands before the reset -->
+                    <StackPanel Margin="0,10,0,0" Visibility="{Binding IsBlockSelected, Converter={StaticResource BoolToVisibility}}">
+                        <controls:LineChart Style="{StaticResource FlyoutLineChart}"
+                                            Series="{Binding BlockSeries}"
+                                            Markers="{Binding BlockMarkers}"
+                                            MinX="{Binding BlockMinX}"
+                                            MaxX="{Binding BlockMaxX}"
+                                            StartLabel="{Binding BlockStartLabel}"
+                                            EndLabel="{Binding BlockEndLabel}"
+                                            XLabeler="{Binding BlockTimeLabeler}"
+                                            Visibility="{Binding HasBlock, Converter={StaticResource BoolToVisibility}}"
+                                            AutomationProperties.Name="{Binding BlockSummary}" />
+                        <TextBlock Style="{StaticResource CaptionText}" Margin="0,6,0,0" Text="{Binding BlockSummary}" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <!-- History: every window over the chosen range -->
+                    <StackPanel Margin="0,6,0,0" Visibility="{Binding IsHistorySelected, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,4" AutomationProperties.Name="History range">
+                            <RadioButton Style="{StaticResource SegmentButton}" GroupName="ChartRange" Content="24 h" IsChecked="{Binding IsDayRange}" AutomationProperties.Name="Last 24 hours" />
+                            <RadioButton Style="{StaticResource SegmentButton}" GroupName="ChartRange" Content="7 d" IsChecked="{Binding IsWeekRange}" AutomationProperties.Name="Last 7 days" />
+                            <RadioButton Style="{StaticResource SegmentButton}" GroupName="ChartRange" Content="30 d" IsChecked="{Binding IsMonthRange}" AutomationProperties.Name="Last 30 days" />
+                        </StackPanel>
+                        <controls:LineChart Style="{StaticResource FlyoutLineChart}"
+                                            Series="{Binding HistorySeries}"
+                                            MinX="{Binding HistoryMinX}"
+                                            MaxX="{Binding HistoryMaxX}"
+                                            StartLabel="{Binding HistoryStartLabel}"
+                                            EndLabel="{Binding HistoryEndLabel}"
+                                            XLabeler="{Binding HistoryTimeLabeler}"
+                                            Visibility="{Binding HasHistory, Converter={StaticResource BoolToVisibility}}"
+                                            AutomationProperties.Name="{Binding HistorySummary}" />
+                        <TextBlock Style="{StaticResource CaptionText}" Margin="0,6,0,0" Text="{Binding HistorySummary}" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <!-- Daily: tokens per day for two weeks, stacked by model on request -->
+                    <StackPanel Margin="0,6,0,0" Visibility="{Binding IsDailySelected, Converter={StaticResource BoolToVisibility}}">
+                        <ToggleButton Style="{StaticResource LinkToggle}"
+                                      Margin="0,0,0,6"
+                                      HorizontalAlignment="Right"
+                                      Content="By model"
+                                      IsChecked="{Binding StackByModel}"
+                                      AutomationProperties.Name="Split the daily chart by model" />
+                        <controls:BarChart Style="{StaticResource FlyoutBarChart}"
+                                           Series="{Binding DailySeries}"
+                                           Categories="{Binding DailyLabels}"
+                                           ValueFormatter="{Binding TokenFormatter}"
+                                           Visibility="{Binding HasDaily, Converter={StaticResource BoolToVisibility}}"
+                                           AutomationProperties.Name="{Binding DailySummary}" />
+                        <TextBlock Style="{StaticResource CaptionText}" Margin="0,6,0,0" Text="{Binding DailySummary}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <TextBlock Margin="0,12,0,0"
                        Style="{StaticResource CaptionText}"
                        Text="{Binding AnalyticsNoteText}"
@@ -251,5 +342,6 @@
                 </Grid>
             </Border>
         </StackPanel>
+        </ScrollViewer>
     </Border>
 </Window>

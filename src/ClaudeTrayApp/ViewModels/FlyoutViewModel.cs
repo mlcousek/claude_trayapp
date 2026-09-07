@@ -2,12 +2,14 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Windows.Threading;
+using ClaudeTrayApp.Charts;
 using ClaudeTrayApp.Core.Account;
 using ClaudeTrayApp.Core.Aggregation;
 using ClaudeTrayApp.Core.Analytics;
 using ClaudeTrayApp.Core.Diagnostics;
 using ClaudeTrayApp.Core.Domain;
 using ClaudeTrayApp.Core.Polling;
+using ClaudeTrayApp.Core.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -27,8 +29,13 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
     private readonly TimeProvider _clock;
     private readonly Dispatcher _dispatcher;
     private readonly ILogger<FlyoutViewModel> _logger;
+    private readonly ChartDataLoader _chartLoader;
     private PollStatus _status;
     private AccountInfo _account = AccountInfo.Empty;
+    private LocalAnalytics? _local;
+    private bool _visible;
+    private bool _chartsLoading;
+    private bool _chartsDirty;
 
     [ObservableProperty]
     private string _planTierText = "Claude";
@@ -136,6 +143,7 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
         IAccountInfoSource accountSource,
         LocalAnalyticsProvider analytics,
         AnalyticsCalculator calculator,
+        IHistoryStore history,
         TimeProvider clock,
         Dispatcher dispatcher,
         ILogger<FlyoutViewModel> logger)
@@ -148,11 +156,17 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
         _dispatcher = dispatcher;
         _logger = logger;
         _status = poller.Status;
+        _chartLoader = new ChartDataLoader(history, calculator, clock.LocalTimeZone);
+        Charts = new ChartsViewModel(ChartPalette.FromApplication(), clock.LocalTimeZone);
+        Charts.RangeChanged += OnChartRangeChanged;
 
         _poller.StatusChanged += OnStatusChanged;
         _analytics.DataChanged += OnAnalyticsChanged;
         Rebuild();
     }
+
+    /// <summary>The charts section; refreshed from the history database only while the flyout is visible.</summary>
+    public ChartsViewModel Charts { get; }
 
     /// <summary>Every window except the primary one, in endpoint order.</summary>
     public ObservableCollection<UsageWindowViewModel> SecondaryWindows { get; } = [];
@@ -200,6 +214,20 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
     /// <summary>Re-renders time-dependent text (countdowns, "updated 3 min ago") without new data.</summary>
     public void Tick() => Rebuild();
 
+    /// <summary>The window became visible: refresh text now and keep charts current on every change.</summary>
+    public void OnShown()
+    {
+        _visible = true;
+        Rebuild();
+        RefreshCharts(force: true);
+    }
+
+    /// <summary>The window was hidden: charts stop refreshing until the next open.</summary>
+    public void OnHidden() => _visible = false;
+
+    /// <summary>Loads chart data once while hidden, so the first open already has lines to draw.</summary>
+    public void PreloadCharts() => RefreshCharts(force: true);
+
     /// <summary>"max" becomes "Claude Max"; tier strings such as default_claude_max_5x become "Claude Max 5x".</summary>
     internal static string FormatPlan(string? tier)
     {
@@ -232,6 +260,7 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
     {
         _poller.StatusChanged -= OnStatusChanged;
         _analytics.DataChanged -= OnAnalyticsChanged;
+        Charts.RangeChanged -= OnChartRangeChanged;
     }
 
     private static string Capitalize(string word) =>
@@ -241,7 +270,8 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
     {
         var now = _clock.GetUtcNow();
         var snapshot = _status.Snapshot;
-        var aggregated = UsageAggregator.Combine(_status, ComputeAnalytics(snapshot, now), now);
+        _local = ComputeAnalytics(snapshot, now);
+        var aggregated = UsageAggregator.Combine(_status, _local, now);
 
         RebuildWindows(snapshot, now);
         RebuildOverage(snapshot);
@@ -256,10 +286,67 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
             ? (_status.IsStale ? "Cached, updated " : "Updated ") + RelativeTime.Format(success, now)
             : "No data yet";
         SourcesText = aggregated.PercentagesAvailable
-            ? $"Percentages: {aggregated.PercentagesSource} · tokens: {AggregatedUsage.AnalyticsSource}"
-            : $"Tokens: {AggregatedUsage.AnalyticsSource}";
+            ? $"Percentages: {aggregated.PercentagesSource}; tokens: session logs"
+            : "Tokens: session logs; percentages unavailable";
 
         UpdateHeader();
+        RefreshCharts(force: false);
+    }
+
+    /// <summary>
+    /// Loads chart data on a thread-pool thread and applies it on the dispatcher. Calls made while a load is running
+    /// are folded into one more load, so a burst of changes costs two queries at most.
+    /// </summary>
+    private void RefreshCharts(bool force)
+    {
+        if (!force && !_visible)
+        {
+            return;
+        }
+
+        if (_chartsLoading)
+        {
+            _chartsDirty = true;
+            return;
+        }
+
+        _chartsLoading = true;
+        _ = LoadChartsAsync(_status.Snapshot, _local?.CurrentBlock, Charts.RangeHours, _clock.GetUtcNow());
+    }
+
+    private async Task LoadChartsAsync(UsageSnapshot? snapshot, BlockAnalytics? block, int rangeHours, DateTimeOffset now)
+    {
+        try
+        {
+            var bundle = await Task.Run(() => _chartLoader.Load(snapshot, block, rangeHours, now));
+            await _dispatcher.InvokeAsync(() => ApplyCharts(bundle));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Chart data could not be loaded");
+        }
+        finally
+        {
+            await _dispatcher.InvokeAsync(() =>
+            {
+                _chartsLoading = false;
+                if (_chartsDirty)
+                {
+                    _chartsDirty = false;
+                    RefreshCharts(force: true);
+                }
+            });
+        }
+    }
+
+    private void ApplyCharts(ChartBundle bundle)
+    {
+        Charts.Apply(bundle);
+        Primary?.SetSpark(bundle.Sparklines.GetValueOrDefault(Primary.Key));
+        foreach (var row in SecondaryWindows)
+        {
+            row.SetSpark(bundle.Sparklines.GetValueOrDefault(row.Key));
+        }
     }
 
     private LocalAnalytics? ComputeAnalytics(UsageSnapshot? snapshot, DateTimeOffset now)
@@ -484,4 +571,6 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
     private void OnStatusChanged(object? sender, PollStatus status) => _dispatcher.BeginInvoke(() => Apply(status));
 
     private void OnAnalyticsChanged(object? sender, EventArgs e) => _dispatcher.BeginInvoke(Rebuild);
+
+    private void OnChartRangeChanged(object? sender, EventArgs e) => RefreshCharts(force: true);
 }

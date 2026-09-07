@@ -12,4 +12,9 @@
     <Color x:Key="SuccessColor">#5C8543</Color>
     <Color x:Key="WarnColor">#9C7420</Color>
     <Color x:Key="DangerColor">#A8392F</Color>
+    <Color x:Key="Chart1Color">#C4633F</Color>
+    <Color x:Key="Chart2Color">#3F73A8</Color>
+    <Color x:Key="Chart3Color">#5C8543</Color>
+    <Color x:Key="Chart4Color">#9C7420</Color>
+    <Color x:Key="Chart5Color">#6B6860</Color>
 </ResourceDictionary>

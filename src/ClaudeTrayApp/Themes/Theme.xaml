@@ -15,6 +15,11 @@
     <SolidColorBrush x:Key="SuccessBrush" Color="{DynamicResource SuccessColor}" />
     <SolidColorBrush x:Key="WarnBrush" Color="{DynamicResource WarnColor}" />
     <SolidColorBrush x:Key="DangerBrush" Color="{DynamicResource DangerColor}" />
+    <SolidColorBrush x:Key="Chart1Brush" Color="{DynamicResource Chart1Color}" />
+    <SolidColorBrush x:Key="Chart2Brush" Color="{DynamicResource Chart2Color}" />
+    <SolidColorBrush x:Key="Chart3Brush" Color="{DynamicResource Chart3Color}" />
+    <SolidColorBrush x:Key="Chart4Brush" Color="{DynamicResource Chart4Color}" />
+    <SolidColorBrush x:Key="Chart5Brush" Color="{DynamicResource Chart5Color}" />
 
     <!-- Type: Segoe UI Variable with Segoe UI as the fallback. Numbers always use tabular figures. -->
     <FontFamily x:Key="UiFontFamily">Segoe UI Variable Text, Segoe UI</FontFamily>

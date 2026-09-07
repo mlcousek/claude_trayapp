@@ -195,6 +195,7 @@ public partial class App : Application
             sp.GetRequiredService<IAccountInfoSource>(),
             sp.GetRequiredService<LocalAnalyticsProvider>(),
             sp.GetRequiredService<AnalyticsCalculator>(),
+            sp.GetRequiredService<IHistoryStore>(),
             sp.GetRequiredService<TimeProvider>(),
             Dispatcher,
             sp.GetRequiredService<ILogger<FlyoutViewModel>>()));

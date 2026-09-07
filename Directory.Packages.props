@@ -18,7 +18,6 @@
   <ItemGroup Label="UI">
     <PackageVersion Include="H.NotifyIcon.Wpf" Version="2.3.2" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageVersion Include="LiveChartsCore.SkiaSharpView.WPF" Version="2.0.5" />
   </ItemGroup>
 
   <ItemGroup Label="Storage">

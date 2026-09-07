@@ -12,4 +12,10 @@
     <Color x:Key="SuccessColor">#7BA05B</Color>
     <Color x:Key="WarnColor">#D4A24C</Color>
     <Color x:Key="DangerColor">#C1554A</Color>
+    <!-- Chart series, in assignment order: accent first, then a muted blue, green, amber and the secondary text tone. -->
+    <Color x:Key="Chart1Color">#D97757</Color>
+    <Color x:Key="Chart2Color">#6A9BCC</Color>
+    <Color x:Key="Chart3Color">#7BA05B</Color>
+    <Color x:Key="Chart4Color">#D4A24C</Color>
+    <Color x:Key="Chart5Color">#A3A096</Color>
 </ResourceDictionary>

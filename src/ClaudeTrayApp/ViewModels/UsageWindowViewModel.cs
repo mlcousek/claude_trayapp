@@ -1,4 +1,6 @@
 using System.Globalization;
+using ClaudeTrayApp.Charts;
+using ClaudeTrayApp.Controls;
 using ClaudeTrayApp.Core.Diagnostics;
 using ClaudeTrayApp.Core.Domain;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -37,6 +39,18 @@ public sealed partial class UsageWindowViewModel : ObservableObject
 
     [ObservableProperty]
     private string _automationText = string.Empty;
+
+    [ObservableProperty]
+    private IReadOnlyList<ChartPoint>? _sparkPoints;
+
+    [ObservableProperty]
+    private double _sparkMinX = double.NaN;
+
+    [ObservableProperty]
+    private double _sparkMaxX = double.NaN;
+
+    [ObservableProperty]
+    private bool _hasSpark;
 
     public UsageWindowViewModel(UsageWindow window, DateTimeOffset now)
     {
@@ -84,6 +98,32 @@ public sealed partial class UsageWindowViewModel : ObservableObject
         AutomationText = HasStatusText
             ? $"{Name}: {PercentText} used, {StatusText}, {ResetText}"
             : $"{Name}: {PercentText} used, {ResetText}";
+    }
+
+    /// <summary>Smallest share of the period the readings must cover before a sparkline is worth drawing.</summary>
+    internal const double MinimumSparkCoverage = 0.05;
+
+    /// <summary>Feeds the inline sparkline; fewer than two readings, or readings covering under 5 % of the period, hide it.</summary>
+    public void SetSpark(SparkData? data)
+    {
+        if (data is null || data.Points.Count < 2 || !CoversEnough(data))
+        {
+            HasSpark = false;
+            SparkPoints = null;
+            return;
+        }
+
+        SparkPoints = data.Points.Select(p => new ChartPoint(ChartsViewModel.ToX(p.At), p.Value)).ToList();
+        SparkMinX = ChartsViewModel.ToX(data.From);
+        SparkMaxX = ChartsViewModel.ToX(data.To);
+        HasSpark = true;
+    }
+
+    internal static bool CoversEnough(SparkData data)
+    {
+        var period = (data.To - data.From).Ticks;
+        var covered = (data.Points[^1].At - data.Points[0].At).Ticks;
+        return period <= 0 || covered >= period * MinimumSparkCoverage;
     }
 
     /// <summary>"at 10:50" within a day, "Fri 16:00" beyond it, in the user's local time and format.</summary>
