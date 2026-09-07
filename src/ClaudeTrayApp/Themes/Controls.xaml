@@ -141,6 +141,29 @@
         </Style.Triggers>
     </Style>
 
+    <!-- Extra-usage bar: the same hairline visuals as ThinBar, without its Status-bound triggers. Its DataContext is
+         the flyout view model, which has no Status property, so ThinBar's DataTriggers would only ever fail to bind;
+         this element always shows the neutral colour set locally where it is used. -->
+    <Style x:Key="OverageBar" TargetType="ProgressBar">
+        <Setter Property="Height" Value="3" />
+        <Setter Property="Minimum" Value="0" />
+        <Setter Property="Maximum" Value="100" />
+        <Setter Property="Background" Value="{DynamicResource HairlineBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource OkBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ProgressBar">
+                    <Grid>
+                        <Border x:Name="PART_Track" Background="{TemplateBinding Background}" CornerRadius="1.5" />
+                        <Border x:Name="PART_Indicator" Background="{TemplateBinding Foreground}" CornerRadius="1.5" HorizontalAlignment="Left" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Flat button with a hairline border. Keyboard focus shows the accent; hover uses the elevated surface. -->
     <Style x:Key="FlyoutButton" TargetType="Button">
         <Setter Property="Background" Value="Transparent" />

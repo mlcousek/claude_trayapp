@@ -189,7 +189,7 @@
                 <ProgressBar Grid.Row="1"
                              Grid.ColumnSpan="2"
                              Margin="0,6,0,0"
-                             Style="{StaticResource ThinBar}"
+                             Style="{StaticResource OverageBar}"
                              Foreground="{DynamicResource TextSecondaryBrush}"
                              Value="{Binding OveragePercent, Mode=OneWay}"
                              AutomationProperties.Name="Extra usage" />
