@@ -72,6 +72,57 @@ public class PricingTests
     }
 
     [Fact]
+    public void A_model_missing_the_input_price_is_skipped_not_priced_at_zero()
+    {
+        const string json = """
+            {"effectiveDate":"2026-06-24","currency":"USD","models":[
+              {"id":"no-input","output":25},
+              {"id":"sibling-model","input":1,"output":2}]}
+            """;
+
+        var table = PricingLoader.Parse(json, "test");
+
+        table.Models.Count.ShouldBe(1);
+        table.Find("no-input").ShouldBeNull();
+        table.Cost("no-input", new TokenTotals(1_000_000, 0, 0, 0, 0, 1)).ShouldBeNull();
+        table.Find("sibling-model").ShouldNotBeNull().Input.ShouldBe(1m);
+    }
+
+    [Fact]
+    public void A_model_missing_the_output_price_is_skipped_not_priced_at_zero()
+    {
+        const string json = """
+            {"effectiveDate":"2026-06-24","currency":"USD","models":[
+              {"id":"no-output","input":15},
+              {"id":"sibling-model","input":1,"output":2}]}
+            """;
+
+        var table = PricingLoader.Parse(json, "test");
+
+        table.Models.Count.ShouldBe(1);
+        table.Find("no-output").ShouldBeNull();
+        table.Cost("no-output", new TokenTotals(0, 1_000_000, 0, 0, 0, 1)).ShouldBeNull();
+        table.Find("sibling-model").ShouldNotBeNull().Output.ShouldBe(2m);
+    }
+
+    [Fact]
+    public void A_model_with_a_non_numeric_input_price_is_skipped_not_priced_at_zero()
+    {
+        const string json = """
+            {"effectiveDate":"2026-06-24","currency":"USD","models":[
+              {"id":"bad-input","input":"fifteen","output":75},
+              {"id":"sibling-model","input":1,"output":2}]}
+            """;
+
+        var table = PricingLoader.Parse(json, "test");
+
+        table.Models.Count.ShouldBe(1);
+        table.Find("bad-input").ShouldBeNull();
+        table.Cost("bad-input", new TokenTotals(1_000_000, 1_000_000, 0, 0, 0, 1)).ShouldBeNull();
+        table.Find("sibling-model").ShouldNotBeNull().Input.ShouldBe(1m);
+    }
+
+    [Fact]
     public void The_bundled_pricing_file_parses_and_covers_current_models()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "ClaudeTrayApp", "pricing.json");

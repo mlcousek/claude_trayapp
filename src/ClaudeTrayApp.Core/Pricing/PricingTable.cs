@@ -149,16 +149,22 @@ public static class PricingLoader
                 continue;
             }
 
+            // A missing or malformed input/output price is treated the same as an unrecognized model id: the
+            // entry is skipped so lookups later degrade to "cost unknown" instead of silently pricing at $0.
+            if (!TryDecimal(entry, "input", out var input) || !TryDecimal(entry, "output", out var output))
+            {
+                continue;
+            }
+
             var match = entry.TryGetProperty("match", out var m) && m.ValueKind == JsonValueKind.String
                 && string.Equals(m.GetString(), "prefix", StringComparison.OrdinalIgnoreCase)
                 ? PriceMatch.Prefix
                 : PriceMatch.Exact;
-            var input = Decimal(entry, "input");
             list.Add(new ModelPrice(
                 id.GetString()!,
                 match,
                 input,
-                Decimal(entry, "output"),
+                output,
                 entry.TryGetProperty("cacheWrite5m", out _) ? Decimal(entry, "cacheWrite5m") : input * 1.25m,
                 entry.TryGetProperty("cacheWrite1h", out _) ? Decimal(entry, "cacheWrite1h") : input * 2m,
                 entry.TryGetProperty("cacheRead", out _) ? Decimal(entry, "cacheRead") : input * 0.1m));
@@ -169,4 +175,17 @@ public static class PricingLoader
 
     private static decimal Decimal(JsonElement entry, string name) =>
         entry.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number ? value.GetDecimal() : 0m;
+
+    /// <summary>True, with the parsed value, only when <paramref name="name"/> is present and a JSON number.</summary>
+    private static bool TryDecimal(JsonElement entry, string name, out decimal value)
+    {
+        if (entry.TryGetProperty(name, out var element) && element.ValueKind == JsonValueKind.Number)
+        {
+            value = element.GetDecimal();
+            return true;
+        }
+
+        value = 0m;
+        return false;
+    }
 }
