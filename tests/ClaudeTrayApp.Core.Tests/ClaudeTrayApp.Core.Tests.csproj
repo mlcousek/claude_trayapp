@@ -22,6 +22,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Synthetic fixtures only: fake tokens, invented sessions. Never real data from ~/.claude. -->
+    <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\ClaudeTrayApp.Core\ClaudeTrayApp.Core.csproj" />
   </ItemGroup>
 
