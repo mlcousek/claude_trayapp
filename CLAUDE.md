@@ -20,6 +20,7 @@ dotnet format --verify-no-changes               # CI fails on any diff
 dotnet run --project src/ClaudeTrayApp
 dotnet run --project src/ClaudeTrayApp -- --probe    # one live fetch, redacted summary in the log, exit 0 or 2
 dotnet run --project src/ClaudeTrayApp -- --render-icons out/icons   # tray icon contact sheets (PNG) for a legibility check
+dotnet run --project src/ClaudeTrayApp -- --capture-flyout out/flyout.png   # opens the flyout after the first poll, screenshots it, exits
 dotnet publish src/ClaudeTrayApp -c Release -r win-x64 -o artifacts/publish/win-x64
 dotnet publish src/ClaudeTrayApp -c Release -r win-arm64 -o artifacts/publish/win-arm64
 ```
@@ -29,7 +30,7 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 
 ## Layout
 
-- `src/ClaudeTrayApp/` WPF app: composition root (`App.xaml.cs`), `Themes/` (`Theme.xaml` tokens, `Palette.Dark.xaml`, `Palette.Light.xaml`), `Theming/` (Windows theme follower), `Tray/` (icon renderer, controller, converter), `ViewModels/`, `Hosting/`, `Interop/`. The only project that references WPF.
+- `src/ClaudeTrayApp/` WPF app: composition root (`App.xaml.cs`), `Themes/` (`Theme.xaml` tokens, `Controls.xaml` styles, `Palette.Dark.xaml`, `Palette.Light.xaml`), `Theming/` (Windows theme follower), `Tray/` (icon renderer, controller, converter, flyout placement maths), `Views/` (`FlyoutWindow`), `Controls/` (`RingArc`), `ViewModels/`, `Hosting/`, `Interop/`, `Diagnostics/` (screenshot aid). The only project that references WPF.
 - `tests/ClaudeTrayApp.Tests/` WPF-side tests (net9.0-windows): tray state, tooltip, renderer pixels on an STA thread.
 - `src/ClaudeTrayApp.Core/` `Domain/` (snapshot, windows, humaniser), `Credentials/`, `Providers/` (OAuth endpoint, parser), `Polling/` (state machine, poller), `Cache/`, `Security/` (redactor), `Diagnostics/`, `ClaudeCode/` (version detection). JSONL analytics, aggregation, pricing and history arrive in M5. No UI references, ever.
 - `tests/ClaudeTrayApp.Core.Tests/` xunit.v3 + Shouldly + NSubstitute. Fixture files with fake tokens and synthetic sessions only.
@@ -60,7 +61,9 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 - Conventional Commits. Small, reviewable commits. Never commit generated artifacts, user data or anything from `~/.claude`.
 - Nullable enabled everywhere; `TreatWarningsAsErrors` in Release; analyzers at `latest-recommended`; `.editorconfig` is enforced by `dotnet format`.
 - MVVM via CommunityToolkit.Mvvm source generators (`[ObservableProperty]`, `[RelayCommand]`). No hand-rolled `INotifyPropertyChanged`.
-- Theme tokens only: colours, brushes and fonts come from `Theme.xaml`. No literals in views. Light and dark palettes both ship.
+- Theme tokens only: colours, brushes and fonts come from `Theme.xaml`. No literals in views. Light and dark palettes both ship. The `Ok` status colour is the Claude accent (terracotta); amber and red take over as a window fills, and every status is also written as text.
+- Core is a library: every `await` uses `ConfigureAwait(false)` (CA2007 is a warning under `src/ClaudeTrayApp.Core`). The app starts and stops the host off the UI thread; view models marshal to the dispatcher themselves.
+- The flyout is hidden, never closed; it is warmed up off-screen at start so a real open takes under 150 ms.
 - Tests are required for anything in Core. Test names use underscores (CA1707 is off under `tests/`).
 - Accessibility is part of done: keyboard navigation, `AutomationProperties` on every control, contrast at least 4.5:1, never colour alone.
 
@@ -85,4 +88,4 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 
 ## Milestones
 
-M1 scaffold (done) · M2 core domain, OAuth provider, cache, backoff (done, live probe verified 2026-09-07) · M3 tray icon (done) · M4 flyout · M5 JSONL analytics, history, aggregation · M6 charts · M7 settings, autostart, notifications, single instance · M8 release pipeline, docs, v0.1.0
+M1 scaffold (done) · M2 core domain, OAuth provider, cache, backoff (done, live probe verified 2026-09-07) · M3 tray icon (done) · M4 flyout (done, no charts yet) · M5 JSONL analytics, history, aggregation · M6 charts · M7 settings, autostart, notifications, single instance · M8 release pipeline, docs, v0.1.0

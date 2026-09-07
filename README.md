@@ -10,10 +10,14 @@ local token/cost analytics.
 > **Unofficial tool.** Claude Usage Tray is a community project. It is not affiliated with, endorsed by, or supported
 > by Anthropic. It relies on an undocumented endpoint that can change or stop working at any time.
 
-> **Status: pre-release, under construction.** Milestones 1 to 3 of 8 are complete: solution scaffold, CI, docs,
-> the data layer (credential discovery, the usage endpoint provider with backoff and cache, verified live) and the
-> generated tray icon with its context menu. The flyout, local analytics and charts follow next. No release exists
-> yet; see [CHANGELOG.md](CHANGELOG.md) for progress.
+> **Status: pre-release, under construction.** Milestones 1 to 4 of 8 are complete: solution scaffold, CI, docs,
+> the data layer (credential discovery, the usage endpoint provider with backoff and cache, verified live), the
+> generated tray icon with its context menu, and the flyout. Local analytics, charts, settings and the release
+> pipeline follow next. No release exists yet; see [CHANGELOG.md](CHANGELOG.md) for progress.
+
+<p>
+  <img src="docs/screenshots/flyout-dark.png" alt="The flyout: a large ring showing the 5-hour window at 100 percent, fully used for now, resets in 57 minutes; compact rows for the 7-day window at 10 percent and a codename window at 0 percent; extra usage 14.87 of 90 USD; footer with Refresh and Settings" width="352">
+</p>
 
 The tray icon in every state and size, on a dark and a light taskbar (native rendering with a 4x blow-up):
 
@@ -22,7 +26,7 @@ The tray icon in every state and size, on a dark and a light taskbar (native ren
   <img src="docs/screenshots/tray-icons-light.png" alt="The same tray icon states on a light taskbar" width="380">
 </p>
 
-<!-- The flyout screenshot lands here with milestone 8. -->
+<!-- Screenshots are produced with `--render-icons` and `--capture-flyout`; the flyout capture never includes the account line. -->
 
 ## What it shows
 

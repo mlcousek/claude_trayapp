@@ -78,9 +78,9 @@ What the parser makes of it:
 - No plan tier is present in the body; `subscriptionType` from the credentials file is used instead.
 - Response time was well under a second; one request per poll.
 
-### Related local caches (not used yet)
+### Account block (used for the flyout header)
 
-`%USERPROFILE%\.claude.json` (a file, distinct from the `.claude` folder) holds `oauthAccount` with `emailAddress`, `displayName`, `organizationName`, `hasExtraUsageEnabled`, `billingType` and `organizationRateLimitTier`, which the flyout header can read (M4). It also holds `cachedUsageUtilization` (`fetchedAtMs` plus the response above under `utilization`), Claude Code's own cache, which could serve as an offline fallback but is often days old. Both are read-only for this app; the file also contains unrelated settings and must never be written.
+`%USERPROFILE%\.claude.json` (a file, distinct from the `.claude` folder; relocated by `CLAUDE_CONFIG_DIR` like the rest) holds `oauthAccount` with `emailAddress`, `displayName`, `organizationName`, `hasExtraUsageEnabled`, `billingType` and `organizationRateLimitTier`. `AccountInfoFileSource` reads only that block, read-only, and the flyout shows the email masked (`k***@example.com`) unless the user toggles it. The file is large and holds unrelated settings; it is never written. It also holds `cachedUsageUtilization` (`fetchedAtMs` plus the response above under `utilization`), Claude Code's own cache, which could serve as an offline fallback but is often days old and is not used.
 
 ### Polling discipline
 

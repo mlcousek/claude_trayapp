@@ -150,11 +150,28 @@ sequenceDiagram
 
 ## Status
 
-Milestones 1 to 3 are delivered: solution layout, build settings, CI, `AppPaths`, the composition root with file
+Milestones 1 to 4 are delivered: solution layout, build settings, CI, `AppPaths`, the composition root with file
 logging and crash logging, the usage domain, credential discovery, the OAuth usage provider, the polling state
-machine, the snapshot cache (verified against the live endpoint), theme tokens with dark and light palettes, and
-the generated tray icon with its context menu. The flyout, JSONL analytics provider, aggregator, history store and
-charts arrive in milestones 4 to 7 and this document is updated with each of them.
+machine, the snapshot cache (verified against the live endpoint), theme tokens with dark and light palettes, the
+generated tray icon with its context menu, and the flyout. The JSONL analytics provider, aggregator, history store,
+charts and settings arrive in milestones 5 to 7 and this document is updated with each of them.
+
+## Flyout
+
+`FlyoutWindow` is a WPF tool window (`WS_EX_TOOLWINDOW`, no taskbar button, not in Alt-Tab) created once at start
+and warmed up off-screen; opening it is a show plus placement, measured at about 100 ms. Placement is pure maths in
+`FlyoutPlacement`: the monitor under the cursor and its work area decide the taskbar edge, and the window is moved
+with `SetWindowPos` in physical pixels, so mixed-DPI setups work with the PerMonitorV2 manifest. The backdrop is
+DWM's transient-window acrylic when available, with a solid surface fallback. Click-outside is handled by the
+window's `Deactivated` event and Esc by key handling. `FlyoutViewModel` splits the snapshot into the primary window
+(the hero ring, `RingArc`) and the secondary rows, formats every string, and re-renders time-dependent text every
+30 s while the flyout is visible.
+
+## Threading
+
+Core is a library and every `await` in it uses `ConfigureAwait(false)`; CA2007 enforces that under
+`src/ClaudeTrayApp.Core`. The app starts and stops the generic host off the UI thread, so the polling loop never
+inherits the dispatcher context, and view models marshal `StatusChanged` to the dispatcher themselves.
 
 ## Tray icon pipeline
 
