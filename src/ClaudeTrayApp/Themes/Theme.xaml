@@ -12,6 +12,7 @@
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="{DynamicResource TextSecondaryColor}" />
     <SolidColorBrush x:Key="AccentBrush" Color="{DynamicResource AccentColor}" />
     <SolidColorBrush x:Key="OkBrush" Color="{DynamicResource OkColor}" />
+    <SolidColorBrush x:Key="SuccessBrush" Color="{DynamicResource SuccessColor}" />
     <SolidColorBrush x:Key="WarnBrush" Color="{DynamicResource WarnColor}" />
     <SolidColorBrush x:Key="DangerBrush" Color="{DynamicResource DangerColor}" />
 
@@ -22,6 +23,7 @@
     <sys:Double x:Key="FontSizeBody">12.5</sys:Double>
     <sys:Double x:Key="FontSizeTitle">15</sys:Double>
     <sys:Double x:Key="FontSizeNumeral">22</sys:Double>
+    <sys:Double x:Key="FontSizeHero">30</sys:Double>
 
     <!-- Spacing, radius, motion -->
     <sys:Double x:Key="SpaceXs">4</sys:Double>

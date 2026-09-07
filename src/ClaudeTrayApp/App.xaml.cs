@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Reflection;
 using System.Windows;
 using ClaudeTrayApp.Core;
+using ClaudeTrayApp.Core.Account;
 using ClaudeTrayApp.Core.Cache;
 using ClaudeTrayApp.Core.ClaudeCode;
 using ClaudeTrayApp.Core.Credentials;
@@ -14,6 +15,7 @@ using ClaudeTrayApp.Hosting;
 using ClaudeTrayApp.Theming;
 using ClaudeTrayApp.Tray;
 using ClaudeTrayApp.ViewModels;
+using ClaudeTrayApp.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -30,9 +32,13 @@ public partial class App : Application
     /// <summary>Command-line switch followed by a folder: write tray icon contact sheets there and exit (development aid).</summary>
     public const string RenderIconsSwitch = "--render-icons";
 
+    /// <summary>Command-line switch followed by a PNG path: open the flyout after the first poll, screenshot it and exit (development aid).</summary>
+    public const string CaptureFlyoutSwitch = "--capture-flyout";
+
     private IHost? _host;
     private ThemeManager? _theme;
     private TrayIconController? _tray;
+    private FlyoutWindow? _flyout;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -53,7 +59,10 @@ public partial class App : Application
             builder.Services.AddSerilog();
             ConfigureServices(builder.Services, paths, version, headless: probe || renderIconsDirectory is not null);
             _host = builder.Build();
-            _host.Start();
+
+            // Start off the UI thread: hosted services must not inherit the dispatcher context.
+            var host = _host;
+            Task.Run(() => host.StartAsync()).GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {
@@ -85,7 +94,16 @@ public partial class App : Application
             }
 
             _tray = _host.Services.GetRequiredService<TrayIconController>();
-            Log.Information("Tray icon ready. Left-click opens the flyout (milestone 4); right-click for the menu");
+            _flyout = _host.Services.GetRequiredService<FlyoutWindow>();
+            _flyout.Prepare();
+            _tray.LeftClick += (_, _) => _flyout.Toggle();
+            _ = _host.Services.GetRequiredService<FlyoutViewModel>().LoadAccountAsync(CancellationToken.None);
+            Log.Information("Tray icon ready. Left-click opens the flyout; right-click for the menu");
+
+            if (ArgumentAfter(e.Args, CaptureFlyoutSwitch) is { } capturePath)
+            {
+                ScheduleFlyoutCapture(capturePath);
+            }
         }
         catch (Exception ex)
         {
@@ -98,10 +116,15 @@ public partial class App : Application
     {
         try
         {
+            _flyout?.Close();
             _tray?.Dispose();
             _theme?.Dispose();
-            _host?.StopAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
-            _host?.Dispose();
+            if (_host is { } host)
+            {
+                // Stop off the UI thread for the same reason the host is started there.
+                Task.Run(() => host.StopAsync(TimeSpan.FromSeconds(5))).GetAwaiter().GetResult();
+                host.Dispose();
+            }
         }
         catch (Exception ex)
         {
@@ -140,6 +163,14 @@ public partial class App : Application
             version,
             sp.GetRequiredService<ILogger<TrayIconViewModel>>()));
         services.AddSingleton<TrayIconController>();
+        services.AddSingleton<IAccountInfoSource>(_ => new AccountInfoFileSource(paths.ClaudeConfigFile));
+        services.AddSingleton(sp => new FlyoutViewModel(
+            sp.GetRequiredService<UsagePoller>(),
+            sp.GetRequiredService<IAccountInfoSource>(),
+            sp.GetRequiredService<TimeProvider>(),
+            Dispatcher,
+            sp.GetRequiredService<ILogger<FlyoutViewModel>>()));
+        services.AddSingleton<FlyoutWindow>();
 
         if (!headless)
         {
@@ -206,6 +237,43 @@ public partial class App : Application
             Log.Error(e.Exception, "Unobserved task exception");
             e.SetObserved();
         };
+    }
+
+    /// <summary>Waits for the first poll, opens the flyout, screenshots it and exits. Development aid only.</summary>
+    private void ScheduleFlyoutCapture(string path)
+    {
+        var open = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+        open.Tick += (_, _) =>
+        {
+            open.Stop();
+            if (_host is { } host)
+            {
+                // Screenshots never carry the account line.
+                host.Services.GetRequiredService<FlyoutViewModel>().AccountHidden = true;
+            }
+
+            _flyout?.ShowFlyout();
+            var capture = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
+            capture.Tick += (_, _) =>
+            {
+                capture.Stop();
+                try
+                {
+                    if (_flyout is not null)
+                    {
+                        Log.Information("Captured the flyout to {File}", Diagnostics.FlyoutCapture.Capture(_flyout, path));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Flyout capture failed");
+                }
+
+                Shutdown(0);
+            };
+            capture.Start();
+        };
+        open.Start();
     }
 
     private static string? ArgumentAfter(string[] args, string switchName)

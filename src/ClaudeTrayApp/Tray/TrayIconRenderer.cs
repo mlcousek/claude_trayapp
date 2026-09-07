@@ -53,7 +53,7 @@ public static class TrayIconRenderer
                 }
                 else
                 {
-                    context.DrawGeometry(null, pen, Arc(center, radius, -90, sweep));
+                    context.DrawGeometry(null, pen, ArcGeometry.Build(center, radius, -90, sweep));
                 }
             }
 
@@ -107,26 +107,4 @@ public static class TrayIconRenderer
         return pen;
     }
 
-    private static PathGeometry Arc(Point center, double radius, double startDegrees, double sweepDegrees)
-    {
-        var figure = new PathFigure { StartPoint = PointOn(center, radius, startDegrees), IsClosed = false, IsFilled = false };
-        figure.Segments.Add(new ArcSegment(
-            PointOn(center, radius, startDegrees + sweepDegrees),
-            new Size(radius, radius),
-            0,
-            sweepDegrees > 180,
-            SweepDirection.Clockwise,
-            true));
-
-        var geometry = new PathGeometry();
-        geometry.Figures.Add(figure);
-        geometry.Freeze();
-        return geometry;
-    }
-
-    private static Point PointOn(Point center, double radius, double degrees)
-    {
-        var radians = degrees * Math.PI / 180;
-        return new Point(center.X + (radius * Math.Cos(radians)), center.Y + (radius * Math.Sin(radians)));
-    }
 }

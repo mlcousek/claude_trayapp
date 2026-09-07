@@ -3,11 +3,13 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Color x:Key="SurfaceColor">#1F1E1D</Color>
     <Color x:Key="SurfaceElevatedColor">#262624</Color>
+    <Color x:Key="SurfaceTranslucentColor">#D91F1E1D</Color>
     <Color x:Key="HairlineColor">#3A3937</Color>
     <Color x:Key="TextPrimaryColor">#FAF9F5</Color>
     <Color x:Key="TextSecondaryColor">#A3A096</Color>
     <Color x:Key="AccentColor">#D97757</Color>
-    <Color x:Key="OkColor">#7BA05B</Color>
+    <Color x:Key="OkColor">#D97757</Color>
+    <Color x:Key="SuccessColor">#7BA05B</Color>
     <Color x:Key="WarnColor">#D4A24C</Color>
     <Color x:Key="DangerColor">#C1554A</Color>
 </ResourceDictionary>
