@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- WPF app: composition root, views and viewmodels. Transport and parsing live in ClaudeTrayApp.Core. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>ClaudeTrayApp</RootNamespace>
+    <AssemblyName>ClaudeTrayApp</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <!-- Publish shape: self-contained single file, ReadyToRun, no trimming (WPF is not trim-safe).
+       Only applied by `dotnet publish`; regular builds stay framework-dependent and fast. -->
+  <PropertyGroup Condition="'$(_IsPublishing)' == 'true'">
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <PublishTrimmed>false</PublishTrimmed>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Serilog.Extensions.Hosting" />
+    <PackageReference Include="Serilog.Sinks.File" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ClaudeTrayApp.Core\ClaudeTrayApp.Core.csproj" />
+  </ItemGroup>
+
+</Project>

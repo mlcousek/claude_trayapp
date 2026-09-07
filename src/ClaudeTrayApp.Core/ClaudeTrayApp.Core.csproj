@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Domain, providers, aggregation, parsing and history. This project must never reference WPF
+       or any UI assembly; tests/CoreArchitectureTests.cs enforces that rule. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>ClaudeTrayApp.Core</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ClaudeTrayApp.Core.Tests" />
+    <!-- NSubstitute proxies for internal interfaces. -->
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+
+</Project>
