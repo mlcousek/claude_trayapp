@@ -13,8 +13,8 @@ arithmetic lives in `ClaudeTrayApp.Core`; the WPF project only composes, binds a
 | ViewModels | App | Observable adapters over aggregated data via CommunityToolkit.Mvvm source generators. Countdown text and number formatting live here. |
 | Views | App | XAML bound to viewmodels. Colours, brushes and fonts come from `Theme.xaml` tokens only. |
 
-Dependency direction is one way: `ClaudeTrayApp` references `ClaudeTrayApp.Core`. Core has no reference to WPF,
-H.NotifyIcon or LiveCharts; `tests/ClaudeTrayApp.Core.Tests/CoreArchitectureTests.cs` fails the build otherwise.
+Dependency direction is one way: `ClaudeTrayApp` references `ClaudeTrayApp.Core`. Core has no reference to WPF or
+H.NotifyIcon; `tests/ClaudeTrayApp.Core.Tests/CoreArchitectureTests.cs` fails the build otherwise.
 
 ## Runtime folders
 
@@ -102,7 +102,7 @@ flowchart TB
     CORE["ClaudeTrayApp.Core (net9.0)<br/>domain, providers, aggregator, parsing, pricing, history"]
     TESTS["ClaudeTrayApp.Core.Tests (xunit.v3)<br/>fixtures with fake tokens only"]
 
-    UI["WPF, H.NotifyIcon.Wpf, CommunityToolkit.Mvvm,<br/>LiveChartsCore.SkiaSharpView.WPF"]
+    UI["WPF, H.NotifyIcon.Wpf, CommunityToolkit.Mvvm"]
     BCL["Microsoft.Extensions.*, Microsoft.Data.Sqlite,<br/>System.Text.Json"]
 
     APP --> CORE
@@ -150,11 +150,11 @@ sequenceDiagram
 
 ## Status
 
-Milestones 1 to 5 are delivered: solution layout, build settings, CI, `AppPaths`, the composition root with file
+Milestones 1 to 6 are delivered: solution layout, build settings, CI, `AppPaths`, the composition root with file
 logging and crash logging, the usage domain, credential discovery, the OAuth usage provider, the polling state
 machine, the snapshot cache (verified against the live endpoint), theme tokens with dark and light palettes, the
-generated tray icon with its context menu, the flyout, and the local analytics pipeline with the SQLite history
-store and the aggregator. Charts and settings arrive in milestones 6 and 7 and this document is updated with them.
+generated tray icon with its context menu, the flyout, the local analytics pipeline with the SQLite history store
+and the aggregator, and the charts. Settings arrive in milestone 7 and this document is updated with them.
 
 ## Local analytics pipeline
 
@@ -180,6 +180,21 @@ DWM's transient-window acrylic when available, with a solid surface fallback. Cl
 window's `Deactivated` event and Esc by key handling. `FlyoutViewModel` splits the snapshot into the primary window
 (the hero ring, `RingArc`) and the secondary rows, formats every string, and re-renders time-dependent text every
 30 s while the flyout is visible.
+
+## Charts
+
+There is no charting package. `Controls/Sparkline`, `Controls/LineChart` and `Controls/BarChart` are small
+`FrameworkElement`s that draw with a `DrawingContext` from the brushes they are given, so they follow the palette
+like every other view: one hairline baseline, edge labels, a top value, optional vertical markers, and a hover
+readout drawn only while the pointer is over the chart. `Charts/ChartDataBuilder` is pure: it downsamples a series
+to at most 240 points keeping the highest value per bucket (peaks survive), builds the 5-hour block chart from the
+recorded percentages plus a straight projection at the calculator's pace that stops at the reset, and rolls daily
+token totals into the top four models plus "other". `Charts/ChartDataLoader` runs the SQLite queries on a
+thread-pool thread; `ChartsViewModel` applies the result on the dispatcher and exposes one chart at a time (this
+block, history over 24 h, 7 d or 30 d, daily tokens with a by-model toggle). Every chart also produces a sentence,
+used as its automation name and shown under it, and a chart without data collapses to that sentence. Sparklines
+sit in the hero (the current block) and in each window row (its own period); they stay hidden until readings
+cover at least 5 % of the period.
 
 ## Threading
 

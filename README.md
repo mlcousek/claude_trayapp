@@ -10,14 +10,14 @@ local token/cost analytics.
 > **Unofficial tool.** Claude Usage Tray is a community project. It is not affiliated with, endorsed by, or supported
 > by Anthropic. It relies on an undocumented endpoint that can change or stop working at any time.
 
-> **Status: pre-release, under construction.** Milestones 1 to 5 of 8 are complete: solution scaffold, CI, docs,
+> **Status: pre-release, under construction.** Milestones 1 to 6 of 8 are complete: solution scaffold, CI, docs,
 > the data layer (credential discovery, the usage endpoint provider with backoff and cache, verified live), the
-> generated tray icon with its context menu, the flyout, and local analytics from the session logs with history.
-> Charts, settings and the release pipeline follow next. No release exists yet; see [CHANGELOG.md](CHANGELOG.md)
+> generated tray icon with its context menu, the flyout, local analytics from the session logs with history, and
+> the charts. Settings and the release pipeline follow next. No release exists yet; see [CHANGELOG.md](CHANGELOG.md)
 > for progress.
 
 <p>
-  <img src="docs/screenshots/flyout-dark.png" alt="The flyout: a large ring showing the 5-hour window at 100 percent, fully used for now, resets in 33 minutes; a pace line with 163M tokens this block, 36M per hour and about 156 dollars; compact rows for the 7-day window at 10 percent and a codename window at 0 percent; extra usage 34.52 of 90 USD; a Today block with 163M tokens and the API-equivalent cost; footer naming the sources with Refresh and Settings" width="352">
+  <img src="docs/screenshots/flyout-dark.png" alt="The flyout: a large ring showing the 5-hour window, a plain-language status and the reset countdown; a pace line with tokens this block, tokens per hour and the API-equivalent cost; compact rows for the 7-day window and a codename window; extra usage; a Today block with tokens and cost; a Charts section with a This block, History and Daily picker showing the current block's recorded percentages, a dashed projection and the projected limit marked; footer naming the sources with Refresh and Settings" width="352">
 </p>
 
 The tray icon in every state and size, on a dark and a light taskbar (native rendering with a 4x blow-up):
@@ -33,9 +33,13 @@ The tray icon in every state and size, on a dark and a light taskbar (native ren
 
 - **Tray icon.** A ring-arc progress indicator around a compact numeral for the window you choose, colour-coded green
   to amber to red, redrawn live and legible at 16 px on light and dark taskbars. The tooltip is a one-line summary.
-- **Flyout (left-click).** Plan tier and masked account email; one row per usage window with percent, thin bar,
-  inline sparkline and "resets in 1h 26m"; extra-usage balance when present; burn rate and projection for the current
-  five-hour block; history charts over 24 h, 7 d or 30 d; today's tokens and estimated cost with a per-model breakdown.
+- **Flyout (left-click).** Plan tier and masked account email; the 5-hour window as a large ring with a sparkline
+  of the block so far; one compact row per other window with percent, thin bar, sparkline and "resets in 1h 26m";
+  extra-usage balance when present; burn rate and projection for the current five-hour block; today's tokens and
+  estimated cost with a per-model breakdown; and three charts, one at a time: this block (recorded percentages, the
+  projection and the moment the limit would land), history of every window over 24 h, 7 d or 30 d, and tokens per
+  day for two weeks, split by model on request. Hover a chart for the exact reading; every chart also has a
+  one-sentence text equivalent.
 - **Context menu (right-click).** Refresh, Settings, Open logs, Start with Windows, About, Quit.
 
 ## Requirements

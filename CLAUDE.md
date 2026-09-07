@@ -30,8 +30,8 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 
 ## Layout
 
-- `src/ClaudeTrayApp/` WPF app: composition root (`App.xaml.cs`), `Themes/` (`Theme.xaml` tokens, `Controls.xaml` styles, `Palette.Dark.xaml`, `Palette.Light.xaml`), `Theming/` (Windows theme follower), `Tray/` (icon renderer, controller, converter, flyout placement maths), `Views/` (`FlyoutWindow`), `Controls/` (`RingArc`), `ViewModels/`, `Hosting/`, `Interop/`, `Diagnostics/` (screenshot aid). The only project that references WPF.
-- `tests/ClaudeTrayApp.Tests/` WPF-side tests (net9.0-windows): tray state, tooltip, renderer pixels on an STA thread.
+- `src/ClaudeTrayApp/` WPF app: composition root (`App.xaml.cs`), `Themes/` (`Theme.xaml` tokens, `Controls.xaml` styles, `Palette.Dark.xaml`, `Palette.Light.xaml`), `Theming/` (Windows theme follower), `Tray/` (icon renderer, controller, converter, flyout placement maths), `Views/` (`FlyoutWindow`), `Controls/` (`RingArc`, `Sparkline`, `LineChart`, `BarChart`: hand-drawn, theme-brushed), `Charts/` (pure chart data builders, loader, palette), `ViewModels/`, `Hosting/`, `Interop/`, `Diagnostics/` (screenshot aid). The only project that references WPF.
+- `tests/ClaudeTrayApp.Tests/` WPF-side tests (net9.0-windows): tray state, tooltip, renderer pixels on an STA thread, chart data builders, charts view model.
 - `src/ClaudeTrayApp.Core/` `Domain/` (snapshot, windows, humaniser), `Credentials/`, `Providers/` (OAuth endpoint, parser), `Polling/` (state machine, poller), `Cache/`, `Analytics/` (JSONL line parser, incremental scanner, provider with watcher, calculator), `Storage/` (SQLite store: events, scan offsets, history), `Pricing/` (`pricing.json` loader and table), `History/` (recorder, retention), `Aggregation/`, `Account/`, `Security/` (redactor), `Diagnostics/`, `ClaudeCode/` (version detection). No UI references, ever.
 - `tests/ClaudeTrayApp.Core.Tests/` xunit.v3 + Shouldly + NSubstitute. Fixture files with fake tokens and synthetic sessions only.
 - `docs/` `architecture.md`, `data-sources.md`, `diagrams/` (Mermaid sources), `screenshots/`.
@@ -45,6 +45,7 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 - `SqliteStore` (`history.db`) holds usage events deduplicated by message id and request id, per-file scan offsets, and the snapshot time series; `HistoryRecorder` appends every fresh snapshot and prunes past the retention window. Charts read only from it.
 - `JsonlScanner` reads only bytes appended since the last scan (530 files, 29k events, about 4 s on first run, under 100 ms after); `LocalAnalyticsProvider` rescans on a debounced file watcher and a 5-minute safety net; `AnalyticsCalculator` derives today, top projects and the 5-hour block on demand, pricing from `pricing.json`.
 - ViewModels (CommunityToolkit.Mvvm source generators) adapt aggregated data for binding; views bind and draw, never compute.
+- Charts are drawn by three small `FrameworkElement`s in `Controls/` from theme brushes; there is no charting package. `Charts/ChartDataBuilder` turns history rows into series (peak-preserving downsampling, projection clipped at the reset, daily totals with the long tail as "other") and is pure; `ChartDataLoader` runs the SQLite queries on a thread-pool thread; `ChartsViewModel` hands the controls points and brushes. Every chart carries a text summary as its automation name and caption.
 - Dependency direction is one way: `ClaudeTrayApp` references `ClaudeTrayApp.Core`. Core never references WPF; `CoreArchitectureTests` fails the build if it does.
 
 ## Hard rules
@@ -54,7 +55,7 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 - Never poll the usage endpoint below the 180 s floor. Default 300 s. On 429 back off exponentially, capped at 30 min, and keep serving the cached snapshot marked stale.
 - Never fabricate a percentage when the endpoint is unavailable. Show "percentages unavailable" plus local analytics.
 - Pricing is never hardcoded: `pricing.json` next to the binary, overridable in settings, effective date shown in the UI. Unknown model ids render "cost unknown", never a number.
-- Only permissive-licensed dependencies (MIT, Apache-2.0, BSD). Ask before adding any package not already in `Directory.Packages.props`.
+- Only permissive-licensed dependencies (MIT, Apache-2.0, BSD). Ask before adding any package not already in `Directory.Packages.props`. LiveChartsCore was dropped in M6: its WPF view pulls OpenTK and SkiaSharp.Views.WPF built for .NET Framework (NU1701) and the charts here are simple enough to draw by hand.
 - No telemetry of any kind. The only network destination is `api.anthropic.com`.
 
 ## Conventions
@@ -64,7 +65,7 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 - MVVM via CommunityToolkit.Mvvm source generators (`[ObservableProperty]`, `[RelayCommand]`). No hand-rolled `INotifyPropertyChanged`.
 - Theme tokens only: colours, brushes and fonts come from `Theme.xaml`. No literals in views. Light and dark palettes both ship. The `Ok` status colour is the Claude accent (terracotta); amber and red take over as a window fills, and every status is also written as text.
 - Core is a library: every `await` uses `ConfigureAwait(false)` (CA2007 is a warning under `src/ClaudeTrayApp.Core`). The app starts and stops the host off the UI thread; view models marshal to the dispatcher themselves.
-- The flyout is hidden, never closed; it is warmed up off-screen at start so a real open takes under 150 ms.
+- The flyout is hidden, never closed; it is warmed up off-screen at start so a real open takes under 150 ms. Chart data is loaded once at warm-up and then only while the flyout is visible; loads never run on the UI thread. The window re-places itself when its height changes and never exceeds the work area (the body scrolls instead).
 - Tests are required for anything in Core. Test names use underscores (CA1707 is off under `tests/`).
 - Accessibility is part of done: keyboard navigation, `AutomationProperties` on every control, contrast at least 4.5:1, never colour alone.
 
@@ -89,4 +90,4 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 
 ## Milestones
 
-M1 scaffold (done) · M2 core domain, OAuth provider, cache, backoff (done, live probe verified 2026-09-07) · M3 tray icon (done) · M4 flyout (done) · M5 JSONL analytics, history, aggregation (done) · M6 charts · M7 settings, autostart, notifications, single instance · M8 release pipeline, docs, v0.1.0
+M1 scaffold (done) · M2 core domain, OAuth provider, cache, backoff (done, live probe verified 2026-09-07) · M3 tray icon (done) · M4 flyout (done) · M5 JSONL analytics, history, aggregation (done) · M6 charts (done) · M7 settings, autostart, notifications, single instance · M8 release pipeline, docs, v0.1.0
