@@ -32,7 +32,7 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 
 - `src/ClaudeTrayApp/` WPF app: composition root (`App.xaml.cs`), `Themes/` (`Theme.xaml` tokens, `Controls.xaml` styles, `Palette.Dark.xaml`, `Palette.Light.xaml`), `Theming/` (Windows theme follower), `Tray/` (icon renderer, controller, converter, flyout placement maths), `Views/` (`FlyoutWindow`), `Controls/` (`RingArc`), `ViewModels/`, `Hosting/`, `Interop/`, `Diagnostics/` (screenshot aid). The only project that references WPF.
 - `tests/ClaudeTrayApp.Tests/` WPF-side tests (net9.0-windows): tray state, tooltip, renderer pixels on an STA thread.
-- `src/ClaudeTrayApp.Core/` `Domain/` (snapshot, windows, humaniser), `Credentials/`, `Providers/` (OAuth endpoint, parser), `Polling/` (state machine, poller), `Cache/`, `Security/` (redactor), `Diagnostics/`, `ClaudeCode/` (version detection). JSONL analytics, aggregation, pricing and history arrive in M5. No UI references, ever.
+- `src/ClaudeTrayApp.Core/` `Domain/` (snapshot, windows, humaniser), `Credentials/`, `Providers/` (OAuth endpoint, parser), `Polling/` (state machine, poller), `Cache/`, `Analytics/` (JSONL line parser, incremental scanner, provider with watcher, calculator), `Storage/` (SQLite store: events, scan offsets, history), `Pricing/` (`pricing.json` loader and table), `History/` (recorder, retention), `Aggregation/`, `Account/`, `Security/` (redactor), `Diagnostics/`, `ClaudeCode/` (version detection). No UI references, ever.
 - `tests/ClaudeTrayApp.Core.Tests/` xunit.v3 + Shouldly + NSubstitute. Fixture files with fake tokens and synthetic sessions only.
 - `docs/` `architecture.md`, `data-sources.md`, `diagrams/` (Mermaid sources), `screenshots/`.
 - `.github/` `workflows/ci.yml` (build, test, format), `workflows/release.yml` (M8), Dependabot, issue templates.
@@ -42,7 +42,8 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 
 - Providers produce a `UsageSnapshot` (percentages, resets, tier) or local analytics (tokens, cost, burn rate). They know about transport, never about UI.
 - `UsageAggregator` merges providers: OAuth data is authoritative for percentages, JSONL data for token and cost analytics. Every field carries its source.
-- `HistoryStore` (SQLite) appends every successful snapshot plus daily rollups and holds JSONL scan offsets. Charts read only from it.
+- `SqliteStore` (`history.db`) holds usage events deduplicated by message id and request id, per-file scan offsets, and the snapshot time series; `HistoryRecorder` appends every fresh snapshot and prunes past the retention window. Charts read only from it.
+- `JsonlScanner` reads only bytes appended since the last scan (530 files, 29k events, about 4 s on first run, under 100 ms after); `LocalAnalyticsProvider` rescans on a debounced file watcher and a 5-minute safety net; `AnalyticsCalculator` derives today, top projects and the 5-hour block on demand, pricing from `pricing.json`.
 - ViewModels (CommunityToolkit.Mvvm source generators) adapt aggregated data for binding; views bind and draw, never compute.
 - Dependency direction is one way: `ClaudeTrayApp` references `ClaudeTrayApp.Core`. Core never references WPF; `CoreArchitectureTests` fails the build if it does.
 
@@ -88,4 +89,4 @@ Publish output is a single self-contained, ReadyToRun exe (about 62 MB); `artifa
 
 ## Milestones
 
-M1 scaffold (done) · M2 core domain, OAuth provider, cache, backoff (done, live probe verified 2026-09-07) · M3 tray icon (done) · M4 flyout (done, no charts yet) · M5 JSONL analytics, history, aggregation · M6 charts · M7 settings, autostart, notifications, single instance · M8 release pipeline, docs, v0.1.0
+M1 scaffold (done) · M2 core domain, OAuth provider, cache, backoff (done, live probe verified 2026-09-07) · M3 tray icon (done) · M4 flyout (done) · M5 JSONL analytics, history, aggregation (done) · M6 charts · M7 settings, autostart, notifications, single instance · M8 release pipeline, docs, v0.1.0

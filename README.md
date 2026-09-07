@@ -10,13 +10,14 @@ local token/cost analytics.
 > **Unofficial tool.** Claude Usage Tray is a community project. It is not affiliated with, endorsed by, or supported
 > by Anthropic. It relies on an undocumented endpoint that can change or stop working at any time.
 
-> **Status: pre-release, under construction.** Milestones 1 to 4 of 8 are complete: solution scaffold, CI, docs,
+> **Status: pre-release, under construction.** Milestones 1 to 5 of 8 are complete: solution scaffold, CI, docs,
 > the data layer (credential discovery, the usage endpoint provider with backoff and cache, verified live), the
-> generated tray icon with its context menu, and the flyout. Local analytics, charts, settings and the release
-> pipeline follow next. No release exists yet; see [CHANGELOG.md](CHANGELOG.md) for progress.
+> generated tray icon with its context menu, the flyout, and local analytics from the session logs with history.
+> Charts, settings and the release pipeline follow next. No release exists yet; see [CHANGELOG.md](CHANGELOG.md)
+> for progress.
 
 <p>
-  <img src="docs/screenshots/flyout-dark.png" alt="The flyout: a large ring showing the 5-hour window at 100 percent, fully used for now, resets in 57 minutes; compact rows for the 7-day window at 10 percent and a codename window at 0 percent; extra usage 14.87 of 90 USD; footer with Refresh and Settings" width="352">
+  <img src="docs/screenshots/flyout-dark.png" alt="The flyout: a large ring showing the 5-hour window at 100 percent, fully used for now, resets in 33 minutes; a pace line with 163M tokens this block, 36M per hour and about 156 dollars; compact rows for the 7-day window at 10 percent and a codename window at 0 percent; extra usage 34.52 of 90 USD; a Today block with 163M tokens and the API-equivalent cost; footer naming the sources with Refresh and Settings" width="352">
 </p>
 
 The tray icon in every state and size, on a dark and a light taskbar (native rendering with a 4x blow-up):

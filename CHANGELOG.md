@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Local analytics from Claude Code session logs: incremental JSONL scanning with per-file offsets in SQLite, deduplication by message id and request id, tolerant of malformed and half-written lines and locked files, near-live updates through a debounced file watcher. Derives today's tokens, per-model and top-project breakdowns, the current 5-hour block's burn rate and, from the endpoint's own percentage, when the limit lands relative to the reset.
+- Data-driven pricing: `pricing.json` next to the binary with an effective date shown in the UI; unknown models show "cost unknown", never a number.
+- History: every fresh snapshot is recorded per window in `history.db` with 90-day retention and pruning; the aggregator labels the source of every figure.
+- Flyout sections for pace and projection, Today with API-equivalent cost and a details disclosure by model and project, and a footer line naming the sources.
 - Flyout: an acrylic tool window anchored to the taskbar edge next to the icon, DPI aware (PerMonitorV2 manifest), dismissed by click-outside or Esc, never in Alt-Tab, warmed up so it opens in under 150 ms. The 5-hour window is the hero: a large Claude-coloured ring with the percentage, a plain-language status, the reset countdown and clock time; other windows are compact rows; extra usage, status banner, honest "percentages unavailable" state, and a footer with relative time, Refresh and Settings.
 - Account header from Claude Code's `.claude.json` (read-only): plan tier and the email, masked by default with a Show/Hide toggle.
 - `--capture-flyout <png>` development switch for screenshots without the account line.

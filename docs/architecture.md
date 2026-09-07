@@ -150,11 +150,25 @@ sequenceDiagram
 
 ## Status
 
-Milestones 1 to 4 are delivered: solution layout, build settings, CI, `AppPaths`, the composition root with file
+Milestones 1 to 5 are delivered: solution layout, build settings, CI, `AppPaths`, the composition root with file
 logging and crash logging, the usage domain, credential discovery, the OAuth usage provider, the polling state
 machine, the snapshot cache (verified against the live endpoint), theme tokens with dark and light palettes, the
-generated tray icon with its context menu, and the flyout. The JSONL analytics provider, aggregator, history store,
-charts and settings arrive in milestones 5 to 7 and this document is updated with each of them.
+generated tray icon with its context menu, the flyout, and the local analytics pipeline with the SQLite history
+store and the aggregator. Charts and settings arrive in milestones 6 and 7 and this document is updated with them.
+
+## Local analytics pipeline
+
+`LocalAnalyticsProvider` runs as a hosted service: one incremental scan at start, a rescan two seconds after the
+session logs change (debounced `FileSystemWatcher`), and a safety-net rescan every five minutes. `JsonlScanner`
+keeps a byte offset, length and mtime per file in `SqliteStore`, reads only appended bytes, leaves a trailing
+partial line for the next pass, restarts a shrunken file from zero, and skips locked files until the next pass.
+`JsonlLineParser` turns assistant records into `UsageEvent`s; the store's primary key on (message id, request id)
+deduplicates the several lines one API response produces. On the probed machine the first scan of 530 files
+(452 MB) stored 29,063 events in 4.3 s; later scans take under 100 ms. `AnalyticsCalculator` answers questions
+on demand from SQL aggregates: today's totals by model priced through `PricingTable`, top projects, and the
+current 5-hour block anchored on the endpoint's reset time, with a projection computed only from the endpoint's
+percentage. `HistoryRecorder` appends every fresh snapshot per window and prunes past the retention window once a
+day. `UsageAggregator` hands the flyout one object whose two halves name their sources.
 
 ## Flyout
 

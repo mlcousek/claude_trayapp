@@ -154,4 +154,8 @@ Rules derived from the probe:
 }
 ```
 
-Unknown model ids degrade to "cost unknown", never to zero or a guessed number. The shipped file is filled in and verified in M5.
+Unknown model ids degrade to "cost unknown", never to zero or a guessed number. The shipped file lists the current first-party rates (effective 2026-06-24) and older models as `prefix` entries so dated ids such as `claude-sonnet-4-5-20250929` match; `cacheWrite5m`, `cacheWrite1h` and `cacheRead` default to 1.25x, 2x and 0.1x of `input` when omitted. Claude Code also logs a `<synthetic>` model for internal messages; it carries no tokens and stays unpriced.
+
+### Scan behaviour observed
+
+First scan on the probed machine: 530 files, 29,063 deduplicated events, 4.3 s. Rescans: under 100 ms for the full directory walk when nothing changed. Files older than the retention window are skipped on first sight; a file that shrinks is read again from the start; a trailing partial line is left for the next pass.
