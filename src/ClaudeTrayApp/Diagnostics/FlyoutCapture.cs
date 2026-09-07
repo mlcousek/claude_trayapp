@@ -1,53 +1,64 @@
-using System.Drawing;
-using System.Drawing.Imaging;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Interop;
-using ClaudeTrayApp.Interop;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
-namespace ClaudeTrayApp.Interop
-{
-    internal static partial class NativeMethods
-    {
-        [LibraryImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        internal static partial bool GetWindowRect(nint hwnd, out RECT rect);
-    }
-}
+namespace ClaudeTrayApp.Diagnostics;
 
-namespace ClaudeTrayApp.Diagnostics
+/// <summary>
+/// Development aid behind <c>--capture-flyout</c>: renders the flyout's visual tree at the window's DPI onto the
+/// solid surface colour. A screen copy was tried first, but it depends on the desktop being composed at that moment
+/// (it came back blank on a locked session), while this render is the same on every machine.
+/// </summary>
+internal static class FlyoutCapture
 {
-    /// <summary>Development aid behind <c>--capture-flyout</c>: screenshots the flyout as the screen shows it, backdrop included.</summary>
-    internal static class FlyoutCapture
+    public static string Capture(Window window, string path)
     {
-        public static string Capture(Window window, string path)
+        ArgumentNullException.ThrowIfNull(window);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        var root = window.Content as Border;
+        var previous = root?.Background;
+        if (root is not null && window.TryFindResource("SurfaceBrush") is Brush surface)
         {
-            ArgumentNullException.ThrowIfNull(window);
-            ArgumentException.ThrowIfNullOrWhiteSpace(path);
+            root.Background = surface;
+            root.UpdateLayout();
+        }
 
-            var hwnd = new WindowInteropHelper(window).Handle;
-            if (!NativeMethods.GetWindowRect(hwnd, out var rect))
-            {
-                throw new InvalidOperationException("The flyout window rectangle is not available.");
-            }
+        try
+        {
+            var dpi = VisualTreeHelper.GetDpi(window);
+            var target = new RenderTargetBitmap(
+                (int)Math.Ceiling(window.ActualWidth * dpi.DpiScaleX),
+                (int)Math.Ceiling(window.ActualHeight * dpi.DpiScaleY),
+                dpi.PixelsPerInchX,
+                dpi.PixelsPerInchY,
+                PixelFormats.Pbgra32);
+            target.Render(window);
 
-            var width = Math.Max(1, rect.Right - rect.Left);
-            var height = Math.Max(1, rect.Bottom - rect.Top);
-            using var bitmap = new Bitmap(width, height);
-            using (var graphics = Graphics.FromImage(bitmap))
-            {
-                graphics.CopyFromScreen(rect.Left, rect.Top, 0, 0, new System.Drawing.Size(width, height));
-            }
-
-            var directory = Path.GetDirectoryName(Path.GetFullPath(path));
+            var fullPath = Path.GetFullPath(path);
+            var directory = Path.GetDirectoryName(fullPath);
             if (!string.IsNullOrEmpty(directory))
             {
                 Directory.CreateDirectory(directory);
             }
 
-            bitmap.Save(path, ImageFormat.Png);
-            return Path.GetFullPath(path);
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(target));
+            using (var stream = File.Create(fullPath))
+            {
+                encoder.Save(stream);
+            }
+
+            return fullPath;
+        }
+        finally
+        {
+            if (root is not null)
+            {
+                root.Background = previous;
+            }
         }
     }
 }

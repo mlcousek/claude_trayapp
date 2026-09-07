@@ -26,6 +26,7 @@ public partial class FlyoutWindow : Window
     private readonly DispatcherTimer _tick = new() { Interval = TimeSpan.FromSeconds(30) };
     private nint _handle;
     private DateTime _hiddenAt = DateTime.MinValue;
+    private POINT _anchor;
 
     public FlyoutWindow(FlyoutViewModel viewModel, ThemeManager theme, ILogger<FlyoutWindow> logger)
     {
@@ -38,6 +39,7 @@ public partial class FlyoutWindow : Window
 
         _tick.Tick += (_, _) => _viewModel.Tick();
         Deactivated += (_, _) => HideFlyout();
+        SizeChanged += OnSizeChanged;
         _theme.ThemeChanged += OnThemeChanged;
     }
 
@@ -56,6 +58,7 @@ public partial class FlyoutWindow : Window
         Hide();
         ShowActivated = true;
         _hiddenAt = DateTime.MinValue;
+        _viewModel.PreloadCharts();
     }
 
     /// <summary>Opens or closes the flyout. A click on the tray icon that just dismissed it does not reopen it.</summary>
@@ -78,12 +81,12 @@ public partial class FlyoutWindow : Window
     public void ShowFlyout()
     {
         var stopwatch = Stopwatch.StartNew();
-        _viewModel.Tick();
+        _viewModel.OnShown();
 
-        NativeMethods.GetCursorPos(out var anchor);
+        NativeMethods.GetCursorPos(out _anchor);
         Show();
         UpdateLayout();
-        Place(anchor);
+        Place(_anchor);
         Activate();
         RefreshButton.Focus();
         FadeIn();
@@ -100,6 +103,7 @@ public partial class FlyoutWindow : Window
         }
 
         _tick.Stop();
+        _viewModel.OnHidden();
         Hide();
         _hiddenAt = DateTime.UtcNow;
     }
@@ -127,9 +131,18 @@ public partial class FlyoutWindow : Window
     protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
     {
         base.OnDpiChanged(oldDpi, newDpi);
-        if (IsVisible && NativeMethods.GetCursorPos(out var anchor))
+        if (IsVisible && NativeMethods.GetCursorPos(out _anchor))
         {
-            Dispatcher.BeginInvoke(() => Place(anchor), DispatcherPriority.Loaded);
+            Dispatcher.BeginInvoke(() => Place(_anchor), DispatcherPriority.Loaded);
+        }
+    }
+
+    /// <summary>Content that arrives after the open (chart data, wrapped text) changes the height; keep hugging the taskbar edge.</summary>
+    private void OnSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (IsVisible && e.HeightChanged)
+        {
+            Place(_anchor);
         }
     }
 
@@ -161,9 +174,18 @@ public partial class FlyoutWindow : Window
             scale = dpiX / 96.0;
         }
 
+        var margin = (int)Math.Round(12 * scale);
+
+        // Never taller than the work area: the body scrolls instead.
+        var maxHeight = Math.Floor((info.Work.Bottom - info.Work.Top - (2 * margin)) / scale);
+        if (maxHeight > 0 && Math.Abs(MaxHeight - maxHeight) > 0.5)
+        {
+            MaxHeight = maxHeight;
+            UpdateLayout();
+        }
+
         var width = (int)Math.Ceiling(ActualWidth * scale);
         var height = (int)Math.Ceiling(ActualHeight * scale);
-        var margin = (int)Math.Round(12 * scale);
         var (x, y, edge) = FlyoutPlacement.Compute(
             new PixelRect(info.Monitor.Left, info.Monitor.Top, info.Monitor.Right, info.Monitor.Bottom),
             new PixelRect(info.Work.Left, info.Work.Top, info.Work.Right, info.Work.Bottom),
