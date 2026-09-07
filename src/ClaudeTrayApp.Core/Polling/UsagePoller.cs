@@ -166,7 +166,7 @@ public sealed class UsagePoller : IDisposable
             }
 
             using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            var timer = Task.Delay(remaining, _clock, cancellationToken);
+            var timer = Task.Delay(remaining, _clock, waitCancellation.Token);
             var refresh = _refreshSignal.WaitAsync(waitCancellation.Token);
             var options = _optionsSignal.WaitAsync(waitCancellation.Token);
 
@@ -176,6 +176,7 @@ public sealed class UsagePoller : IDisposable
                 _logger.LogDebug("Manual refresh requested");
                 await refresh.ConfigureAwait(false);
                 await waitCancellation.CancelAsync().ConfigureAwait(false);
+                Drain(_refreshSignal);
                 return;
             }
 

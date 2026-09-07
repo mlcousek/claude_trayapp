@@ -121,4 +121,59 @@ public class UsagePollerTests
 
         await Should.ThrowAsync<OperationCanceledException>(() => poller.FetchOnceAsync(cancellation.Token));
     }
+
+    /// <summary>
+    /// Regression for a leftover-signal bug: two TryRequestRefresh() calls in quick succession (a UI double-invoke,
+    /// both issued while the poller is still idle and has not yet consumed either) used to leave the refresh
+    /// semaphore's count at 1 after the first was drained, so the wait loop's *next* cycle treated that leftover
+    /// count as a fresh manual refresh and fetched immediately - without ever calling CanRefreshNow again, silently
+    /// bypassing ManualRefreshFloor. The fix drains the semaphore in the same branch that consumes it.
+    /// </summary>
+    [Fact]
+    public async Task Two_rapid_manual_refreshes_never_cause_a_third_unrequested_fetch()
+    {
+        var (poller, provider, _, clock, _) = Create();
+        var fetchCount = 0;
+        provider.FetchAsync(Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            Interlocked.Increment(ref fetchCount);
+            return Task.FromResult(UsageFetchResult.Success(Snapshot(1)));
+        });
+
+        using var cancellation = new CancellationTokenSource();
+        var loop = poller.RunAsync(cancellation.Token);
+
+        await WaitUntilAsync(() => poller.Status.State == PollState.Ok, TestContext.Current.CancellationToken);
+        fetchCount.ShouldBe(1);
+
+        // Move past the manual-refresh floor so a real refresh is allowed, then fire two requests back to back:
+        // both see the same (unchanged) status and so both pass the floor check, exactly like a double click.
+        clock.Advance(PollingOptions.DefaultManualRefreshFloor + TimeSpan.FromSeconds(1));
+        poller.TryRequestRefresh(out var reason1).ShouldBeTrue();
+        reason1.ShouldBeNull();
+        poller.TryRequestRefresh(out var reason2).ShouldBeTrue();
+        reason2.ShouldBeNull();
+
+        // The one legitimate manual refresh they represent should complete (this can race straight past a
+        // buggy leftover fetch too, so wait for "at least" rather than "exactly" before settling below).
+        await WaitUntilAsync(() => fetchCount >= 2, TestContext.Current.CancellationToken);
+
+        // ...but the leftover signal from the second call must not trigger a further, unrequested fetch.
+        await Task.Delay(500, TestContext.Current.CancellationToken);
+        fetchCount.ShouldBe(2);
+
+        await cancellation.CancelAsync();
+        await Should.ThrowAsync<OperationCanceledException>(() => loop);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition, CancellationToken cancellationToken)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+        while (!condition())
+        {
+            linked.Token.ThrowIfCancellationRequested();
+            await Task.Delay(10, linked.Token);
+        }
+    }
 }
