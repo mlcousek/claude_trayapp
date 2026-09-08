@@ -9,6 +9,7 @@ using ClaudeTrayApp.Core.Polling;
 using ClaudeTrayApp.Core.Pricing;
 using ClaudeTrayApp.Core.Settings;
 using ClaudeTrayApp.Core.Storage;
+using ClaudeTrayApp.Core.Updates;
 using ClaudeTrayApp.Startup;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -48,6 +49,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     private readonly UsagePoller _poller;
     private readonly IHistoryStore _history;
     private readonly LocalAnalyticsProvider _analytics;
+    private readonly UpdateNotifier _updates;
+    private readonly UpdateChecker _updateChecker;
     private readonly Dispatcher _dispatcher;
     private readonly ILogger<SettingsViewModel> _logger;
     private bool _loading;
@@ -78,6 +81,15 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private bool _showInactiveWindows;
+
+    [ObservableProperty]
+    private bool _checkForUpdates = true;
+
+    [ObservableProperty]
+    private string _updateStatus = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasUpdate;
 
     [ObservableProperty]
     private string _retentionText = string.Empty;
@@ -119,6 +131,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         UsagePoller poller,
         IHistoryStore history,
         LocalAnalyticsProvider analytics,
+        UpdateNotifier updates,
+        UpdateChecker updateChecker,
         Dispatcher dispatcher,
         ILogger<SettingsViewModel> logger)
     {
@@ -128,6 +142,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _poller = poller;
         _history = history;
         _analytics = analytics;
+        _updates = updates;
+        _updateChecker = updateChecker;
         _dispatcher = dispatcher;
         _logger = logger;
 
@@ -136,7 +152,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _store.Changed += OnSettingsChanged;
         _pricing.Changed += OnPricingChanged;
         _poller.StatusChanged += OnPollStatusChanged;
+        _updates.Changed += OnUpdatesChanged;
+        UpdateUpdateStatus();
     }
+
+    /// <summary>The version this build reports, shown next to the update setting.</summary>
+    public string CurrentVersionText => "Version " + _updateChecker.CurrentVersion;
 
     public ObservableCollection<ChoiceItem<string>> TrayWindowChoices { get; } = [];
 
@@ -160,6 +181,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             ShowLocalAnalytics = settings.ShowLocalAnalytics;
             ShowExtraUsage = settings.ShowExtraUsage;
             ShowInactiveWindows = settings.ShowInactiveWindows;
+            CheckForUpdates = settings.CheckForUpdates;
             RetentionText = settings.HistoryRetentionDays.ToString(CultureInfo.InvariantCulture);
             RetentionNote = null;
             NotificationsEnabled = settings.Notifications.Enabled;
@@ -251,7 +273,18 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _store.Changed -= OnSettingsChanged;
         _pricing.Changed -= OnPricingChanged;
         _poller.StatusChanged -= OnPollStatusChanged;
+        _updates.Changed -= OnUpdatesChanged;
     }
+
+    /// <summary>What the last check found, in the words the settings window shows.</summary>
+    internal static string DescribeUpdate(UpdateCheckOutcome? outcome, bool enabled) => (outcome, enabled) switch
+    {
+        (_, false) => "Update checks are off. Releases are listed on GitHub.",
+        (null, _) => "Not checked yet.",
+        ({ Status: UpdateCheckStatus.UpdateAvailable, Release: { } release }, _) => $"Version {release.Version} is available.",
+        ({ Status: UpdateCheckStatus.UpToDate }, _) => "This is the newest release.",
+        _ => "The last check could not reach GitHub.",
+    };
 
     partial void OnMaskEmailChanged(bool value) => Persist(s => s with { MaskEmail = value });
 
@@ -260,6 +293,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     partial void OnShowExtraUsageChanged(bool value) => Persist(s => s with { ShowExtraUsage = value });
 
     partial void OnShowInactiveWindowsChanged(bool value) => Persist(s => s with { ShowInactiveWindows = value });
+
+    partial void OnCheckForUpdatesChanged(bool value)
+    {
+        Persist(s => s with { CheckForUpdates = value });
+        UpdateUpdateStatus();
+    }
 
     partial void OnNotificationsEnabledChanged(bool value) => Persist(s => s with { Notifications = s.Notifications with { Enabled = value } });
 
@@ -394,6 +433,20 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
+    private void OpenReleasePage()
+    {
+        var url = _updates.Available?.Url ?? _updateChecker.ReleasesPageUrl;
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true })?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "The releases page could not be opened");
+        }
+    }
+
+    [RelayCommand]
     private void OpenSettingsFolder()
     {
         try
@@ -474,4 +527,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     private void OnPricingChanged(object? sender, EventArgs e) => _dispatcher.BeginInvoke(UpdatePricingStatus);
 
     private void OnPollStatusChanged(object? sender, PollStatus status) => _dispatcher.BeginInvoke(() => RefreshTrayWindowChoices());
+
+    private void OnUpdatesChanged(object? sender, EventArgs e) => _dispatcher.BeginInvoke(UpdateUpdateStatus);
+
+    private void UpdateUpdateStatus()
+    {
+        UpdateStatus = DescribeUpdate(_updates.Last, CheckForUpdates);
+        HasUpdate = CheckForUpdates && _updates.Available is not null;
+    }
 }

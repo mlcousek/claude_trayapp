@@ -67,6 +67,12 @@ public sealed record AppSettings
 
     public bool MaskEmail { get; init; } = true;
 
+    /// <summary>
+    /// Ask GitHub once a week whether a newer release exists, and say so in a notification. The only request that
+    /// leaves this machine besides the usage endpoint; it carries nothing about the user and can be turned off here.
+    /// </summary>
+    public bool CheckForUpdates { get; init; } = true;
+
     public ThemeSetting Theme { get; init; } = ThemeSetting.System;
 
     /// <summary>Path to a pricing.json that replaces the bundled one; null or empty means bundled.</summary>

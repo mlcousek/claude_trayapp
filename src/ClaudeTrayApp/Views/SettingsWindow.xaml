@@ -205,6 +205,33 @@
                 <TextBlock Style="{StaticResource Note}" Margin="0,-2,0,0" Text="{Binding PricingStatus}" />
                 <TextBlock Style="{StaticResource Note}" Margin="0,-2,0,0" Text="USD per million tokens. Unknown models show “cost unknown”, never a guess." />
 
+                <!-- Updates -->
+                <TextBlock Style="{StaticResource SectionTitle}" Text="Updates" />
+                <CheckBox Style="{StaticResource Check}"
+                          Content="Check GitHub weekly for a newer release"
+                          IsChecked="{Binding CheckForUpdates}"
+                          AutomationProperties.Name="Check for updates weekly" />
+                <Grid Style="{StaticResource Row}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="180" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource RowLabel}" Text="{Binding CurrentVersionText}" />
+                    <TextBlock Grid.Column="1"
+                               Style="{StaticResource CaptionText}"
+                               VerticalAlignment="Center"
+                               Text="{Binding UpdateStatus}"
+                               TextWrapping="Wrap" />
+                    <Button Grid.Column="2"
+                            Style="{StaticResource FlyoutButton}"
+                            Margin="8,0,0,0"
+                            Content="Releases…"
+                            Command="{Binding OpenReleasePageCommand}"
+                            AutomationProperties.Name="Open the releases page on GitHub" />
+                </Grid>
+                <TextBlock Style="{StaticResource Note}" Margin="0,-2,0,0" Text="The check is one request to github.com that carries nothing about you. Nothing is downloaded or installed for you." />
+
                 <!-- Footer -->
                 <Border Margin="0,18,0,0" Padding="0,12,0,0" BorderBrush="{DynamicResource HairlineBrush}" BorderThickness="0,1,0,0">
                     <Grid>

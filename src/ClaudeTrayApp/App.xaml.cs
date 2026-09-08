@@ -17,6 +17,7 @@ using ClaudeTrayApp.Core.Pricing;
 using ClaudeTrayApp.Core.Providers;
 using ClaudeTrayApp.Core.Settings;
 using ClaudeTrayApp.Core.Storage;
+using ClaudeTrayApp.Core.Updates;
 using ClaudeTrayApp.Hosting;
 using ClaudeTrayApp.Startup;
 using ClaudeTrayApp.Theming;
@@ -245,6 +246,16 @@ public partial class App : Application
         services.AddSingleton<Application>(this);
         services.AddSingleton<ThemeManager>();
         services.AddSingleton<ThresholdNotifier>();
+
+        // Update check: one unauthenticated GET a week, off entirely when the user turns the setting off.
+        services.AddSingleton<UpdateNotifier>();
+        services.AddSingleton(sp => new UpdateChecker(
+            sp.GetRequiredService<HttpClient>(),
+            version,
+            sp.GetRequiredService<ILogger<UpdateChecker>>()));
+        services.AddSingleton(sp => new UpdateCheckStateStore(
+            paths.UpdateStateFile,
+            sp.GetRequiredService<ILogger<UpdateCheckStateStore>>()));
         // The Run entry points at the process itself. Assembly.Location is empty inside a single-file publish (IL3000),
         // so the fallback is the exe next to AppContext.BaseDirectory rather than the assembly.
         services.AddSingleton(sp => new AutostartManager(
@@ -268,6 +279,8 @@ public partial class App : Application
             sp.GetRequiredService<UsagePoller>(),
             sp.GetRequiredService<IHistoryStore>(),
             sp.GetRequiredService<LocalAnalyticsProvider>(),
+            sp.GetRequiredService<UpdateNotifier>(),
+            sp.GetRequiredService<UpdateChecker>(),
             Dispatcher,
             sp.GetRequiredService<ILogger<SettingsViewModel>>()));
         services.AddSingleton(sp => new TrayIconViewModel(
@@ -303,6 +316,15 @@ public partial class App : Application
             services.AddHostedService<UsagePollerService>();
             services.AddHostedService<LocalAnalyticsService>();
             services.AddHostedService<HistoryRecorderService>();
+            services.AddHostedService(sp => new UpdateCheckService(
+                sp.GetRequiredService<UpdateChecker>(),
+                sp.GetRequiredService<UpdateCheckStateStore>(),
+                sp.GetRequiredService<SettingsStore>(),
+                sp.GetRequiredService<UpdateNotifier>(),
+                sp.GetRequiredService<TrayIconController>(),
+                Dispatcher,
+                sp.GetRequiredService<TimeProvider>(),
+                sp.GetRequiredService<ILogger<UpdateCheckService>>()));
         }
     }
 

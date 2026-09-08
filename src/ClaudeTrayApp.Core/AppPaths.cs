@@ -58,6 +58,9 @@ public sealed class AppPaths
 
     public string DatabaseFile => Path.Combine(LocalRoot, "history.db");
 
+    /// <summary>When the app last asked GitHub for a newer release, and which version it already mentioned.</summary>
+    public string UpdateStateFile => Path.Combine(LocalRoot, "update-check.json");
+
     public string SettingsFile => Path.Combine(RoamingRoot, "settings.json");
 
     /// <summary>Claude Code home (normally ~/.claude). This app only ever reads from it.</summary>
