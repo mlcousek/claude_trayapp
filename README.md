@@ -119,6 +119,7 @@ runs; a file that does not parse is left untouched and reported in the Settings 
 | `showInactiveWindows` | `false` | Show codename windows the endpoint reports at 0 % with no reset time (for example "Nimbus quill"). The documented windows are always shown. |
 | `maskEmail` | `true` | Mask the account email in the flyout; the flyout's Show/Hide button changes it too. |
 | `theme` | `"system"` | `system`, `light` or `dark`. |
+| `checkForUpdates` | `true` | Ask GitHub once a week whether a newer release exists and say so in a notification. Nothing is downloaded or installed for you. |
 | `pricingFilePath` | `null` | Path to your own `pricing.json`; `null` means the bundled file. |
 
 **Start with Windows** is not stored in the file: it is an opt-in, per-user `HKCU\...\Run` entry, toggled from the
@@ -142,8 +143,10 @@ The full probed schemas and the rules derived from them are in [docs/data-source
 
 ## Privacy
 
-- No telemetry, no analytics, no crash reporting. Nothing leaves your machine except the usage request to
-  `api.anthropic.com`.
+- No telemetry, no analytics, no crash reporting. Two kinds of request leave your machine, and nothing else:
+  the usage request to `api.anthropic.com`, and, once a week, an update check that asks `api.github.com` for this
+  project's latest release tag. The update check sends nothing about you (no account, no usage, no identifier) and
+  can be turned off in Settings; with it off, `api.anthropic.com` is the only destination.
 - The OAuth token is read from Claude Code's credential file, kept in memory, redacted from logs and never written
   anywhere by this app.
 - The app writes only to `%LOCALAPPDATA%\ClaudeTrayApp` (cache, history database, logs) and

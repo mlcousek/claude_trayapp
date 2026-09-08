@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+# The release zips hold a single self-contained exe, so winget installs them as a portable package: no installer
+# runs, nothing lands in Program Files, and uninstalling removes the extracted folder.
+# The checksums below must match SHA256SUMS.txt from the matching GitHub release.
+PackageIdentifier: mlcousek.ClaudeUsageTray
+PackageVersion: 0.1.1
+InstallerType: zip
+NestedInstallerType: portable
+NestedInstallerFiles:
+  - RelativeFilePath: ClaudeTrayApp.exe
+    PortableCommandAlias: claude-usage-tray
+UpgradeBehavior: install
+ReleaseDate: 2026-09-07
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/mlcousek/claude_trayapp/releases/download/v0.1.1/ClaudeUsageTray-0.1.1-win-x64.zip
+    InstallerSha256: 0C2DA8FE491CFF7FC8AB9B5D7AB15E4F4E8EADB647E2A76AE32E44FE9AD5362E
+  - Architecture: arm64
+    InstallerUrl: https://github.com/mlcousek/claude_trayapp/releases/download/v0.1.1/ClaudeUsageTray-0.1.1-win-arm64.zip
+    InstallerSha256: DB48A19C7C2A55B29A0FD33A553EF5D9B219561EC2BD5027CC732EB2D7192E57
+ManifestType: installer
+ManifestVersion: 1.6.0

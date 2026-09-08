@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- An update check: once a week the app asks GitHub whether a newer release exists and says so once in a tray notification. It sends nothing about you, downloads nothing, and can be turned off under Updates in Settings, which also shows the version you are on and links to the releases page.
+- winget manifests under `packaging/winget/`, validated locally, plus `docs/packaging.md` covering both the winget submission and the SignPath code-signing setup that would end the SmartScreen prompt.
+
+### Changed
+
+- When the usage endpoint answers with readable JSON that carries no usage windows at all, the app now says the format may have changed and suggests checking for a newer version, instead of showing the same "percentages unavailable" as a network outage. The log records the top-level keys it saw, which is what a diagnosis needs.
+
 ### Fixed
 
 - A rapid double refresh (for example a UI double-click) could leave a spare wake-up signal behind and fire one extra fetch on the next cycle, ignoring the manual-refresh floor; the leftover signal is now drained. A `Task.Delay` started for a wait that ended early (a refresh or an options change) no longer keeps running unobserved for up to 30 minutes.
