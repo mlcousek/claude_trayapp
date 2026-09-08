@@ -61,14 +61,19 @@ from the README's install section.
 
 ## winget
 
-`packaging/winget/<version>/` holds the three manifests winget expects. They describe a **portable zip**: winget
-extracts the self-contained exe, registers `claude-usage-tray` as a command alias, and removes the folder on
-uninstall. Nothing is written to Program Files and no installer runs, which matches how the app is distributed.
+`packaging/winget/<version>/` holds the three manifests winget expects, one folder per release. Submit the newest
+only; older folders stay as a record of what was prepared, and winget-pkgs keeps its own history of accepted
+versions. They describe a **portable zip**: winget extracts the self-contained exe, registers `claude-usage-tray`
+as a command alias, and removes the folder on uninstall. Nothing is written to Program Files and no installer runs,
+which matches how the app is distributed.
+
+Take the checksums from the release's own `SHA256SUMS.txt` rather than retyping them: a wrong hash makes
+`winget install` fail for everyone, and it is the one field nothing else would catch.
 
 Validate any change locally before submitting:
 
 ```powershell
-winget validate --manifest packaging\winget\0.1.1
+winget validate --manifest packaging\winget\0.1.2
 ```
 
 ### Submitting
@@ -78,7 +83,7 @@ manifests, validates them and opens the PR in one step:
 
 ```powershell
 winget install Microsoft.WingetCreate
-wingetcreate submit --token <a GitHub token with public_repo> packaging\winget\0.1.1
+wingetcreate submit --token <a GitHub token with public_repo> packaging\winget\0.1.2
 ```
 
 For later releases, update an existing package instead of writing manifests by hand:
