@@ -36,14 +36,16 @@ The repository was measured against their published conditions on 2026-09-08 and
 found, missing uninstall instructions and a missing code signing policy, are now in the README. `docs/packaging.md`
 has the comparison table, the wording to put in the application, and the rest of the procedure.
 
-What is left is yours, because the form sits behind a captcha and creates an account:
+**Applied on 2026-09-08**, and multi-factor authentication on the GitHub account is confirmed on, which they require
+of every team member. Their review is a human one and takes a few days; the answer arrives by email.
 
-1. Confirm multi-factor authentication is on for your GitHub account, which they require of every team member.
-2. Apply at <https://signpath.org/apply>, using the wording in `docs/packaging.md`.
-3. On approval, create the project, artifact configuration and signing policy, add the two repository secrets, and
-   paste the guarded workflow block into `.github/workflows/release.yml`.
-4. Move the README's code signing policy into the present tense and drop the SmartScreen sentence. The next tag
-   then produces a signed release.
+On approval:
+
+1. Create the project, artifact configuration and signing policy in the SignPath organisation, then add the
+   `SIGNPATH_API_TOKEN` secret and `SIGNPATH_ORGANIZATION_ID` variable to the repository.
+2. Paste the guarded workflow block from `docs/packaging.md` into `.github/workflows/release.yml`.
+3. Move the README's code signing policy into the present tense and drop the SmartScreen sentence from the install
+   steps. The next tag then produces a signed release.
 
 ## Deferred from the code review of 2026-09-08
 
