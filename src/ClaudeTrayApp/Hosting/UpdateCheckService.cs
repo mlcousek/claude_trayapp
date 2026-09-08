@@ -5,6 +5,7 @@ using ClaudeTrayApp.Core.Updates;
 using ClaudeTrayApp.Startup;
 using ClaudeTrayApp.Tray;
 using ClaudeTrayApp.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -30,7 +31,7 @@ internal sealed class UpdateCheckService : BackgroundService
     private readonly UpdateCheckStateStore _state;
     private readonly SettingsStore _settings;
     private readonly UpdateNotifier _notifier;
-    private readonly TrayIconController _tray;
+    private readonly IServiceProvider _services;
     private readonly Dispatcher _dispatcher;
     private readonly TimeProvider _clock;
     private readonly ILogger<UpdateCheckService> _logger;
@@ -40,7 +41,7 @@ internal sealed class UpdateCheckService : BackgroundService
         UpdateCheckStateStore state,
         SettingsStore settings,
         UpdateNotifier notifier,
-        TrayIconController tray,
+        IServiceProvider services,
         Dispatcher dispatcher,
         TimeProvider clock,
         ILogger<UpdateCheckService> logger)
@@ -49,7 +50,7 @@ internal sealed class UpdateCheckService : BackgroundService
         _state = state;
         _settings = settings;
         _notifier = notifier;
-        _tray = tray;
+        _services = services;
         _dispatcher = dispatcher;
         _clock = clock;
         _logger = logger;
@@ -132,11 +133,14 @@ internal sealed class UpdateCheckService : BackgroundService
     {
         _logger.LogInformation("Announcing update {Version}", release.Version);
         var notification = new TrayNotification("Claude Usage Tray", FormatAvailable(release, _checker.CurrentVersion), IsWarning: false);
+
+        // The tray icon is resolved here rather than injected: it builds WPF components in its constructor, so it
+        // can only be created on the STA UI thread, and the host starts its services on a background one.
         _dispatcher.BeginInvoke(() =>
         {
             try
             {
-                _tray.ShowNotification(notification);
+                _services.GetRequiredService<TrayIconController>().ShowNotification(notification);
             }
             catch (Exception ex)
             {

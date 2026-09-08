@@ -321,7 +321,7 @@ public partial class App : Application
                 sp.GetRequiredService<UpdateCheckStateStore>(),
                 sp.GetRequiredService<SettingsStore>(),
                 sp.GetRequiredService<UpdateNotifier>(),
-                sp.GetRequiredService<TrayIconController>(),
+                sp,
                 Dispatcher,
                 sp.GetRequiredService<TimeProvider>(),
                 sp.GetRequiredService<ILogger<UpdateCheckService>>()));
