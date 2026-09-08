@@ -12,6 +12,12 @@ public enum UsageFetchStatus
     ServerError,
     NetworkError,
     ParseError,
+
+    /// <summary>
+    /// The endpoint answered 200 with readable JSON that carried no usage windows at all. Either its undocumented
+    /// shape changed or this account reports none; both mean percentages cannot be shown, and neither is invented.
+    /// </summary>
+    SchemaChanged,
 }
 
 /// <summary>Outcome of one fetch. <see cref="Message"/> is user-facing and never contains a secret.</summary>

@@ -172,4 +172,44 @@ public class OAuthUsageProviderTests
             log.All.ShouldNotContain(FakeCredentialSource.Token);
         }
     }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"five_hour\":null,\"seven_day\":null}")]
+    [InlineData("{\"limits\":[],\"member_dashboard_available\":false}")]
+    [InlineData("{\"windows\":{\"five_hour\":{\"pct\":51}}}")]
+    public async Task A_body_with_no_usage_windows_is_reported_as_a_changed_format(string body)
+    {
+        // 200 and readable JSON, but nothing that parses as a window: the endpoint is undocumented, so say the
+        // format may have moved rather than showing a bare "unavailable" with no explanation.
+        var (provider, _, _) = Create(_ => Json(HttpStatusCode.OK, body));
+
+        var result = await provider.FetchAsync(TestContext.Current.CancellationToken);
+
+        result.Status.ShouldBe(UsageFetchStatus.SchemaChanged);
+        result.Snapshot.ShouldBeNull();
+        result.Message.ShouldNotBeNull().ShouldContain("format may have changed");
+    }
+
+    [Fact]
+    public async Task A_changed_format_logs_the_keys_it_saw_and_no_secret()
+    {
+        var (provider, _, log) = Create(_ => Json(HttpStatusCode.OK, "{\"unexpected_root\":{\"five_hour\":51}}"));
+
+        await provider.FetchAsync(TestContext.Current.CancellationToken);
+
+        log.All.ShouldContain("unexpected_root");
+        log.All.ShouldNotContain(FakeCredentialSource.Token);
+    }
+
+    [Fact]
+    public async Task A_body_that_still_carries_windows_stays_a_success()
+    {
+        var (provider, _, _) = Create(_ => Json(HttpStatusCode.OK, Typical()));
+
+        var result = await provider.FetchAsync(TestContext.Current.CancellationToken);
+
+        result.Status.ShouldBe(UsageFetchStatus.Success);
+        result.Snapshot.ShouldNotBeNull().Windows.ShouldNotBeEmpty();
+    }
 }

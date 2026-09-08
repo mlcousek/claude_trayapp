@@ -125,6 +125,18 @@ public sealed class OAuthUsageProvider : IUsageProvider
                 using var document = JsonDocument.Parse(body);
                 LogShapeOnce(document.RootElement);
                 var snapshot = UsageResponseParser.Parse(document.RootElement, now, credentials.SubscriptionType);
+                if (snapshot.Windows.Count == 0)
+                {
+                    // Readable JSON, but nothing in it looked like a usage window. Name that case instead of falling
+                    // through to a bare "unavailable": it is the shape most likely to mean the endpoint moved on.
+                    _logger.LogWarning(
+                        "Usage response carried no windows; the endpoint's shape may have changed. Top-level keys: {Keys}",
+                        DescribeTopLevelKeys(document.RootElement));
+                    return UsageFetchResult.Failed(
+                        UsageFetchStatus.SchemaChanged,
+                        "The usage endpoint returned no usage windows. Its format may have changed; check whether a newer version of this app is available.");
+                }
+
                 return UsageFetchResult.Success(snapshot);
             }
             catch (JsonException ex)
@@ -148,6 +160,21 @@ public sealed class OAuthUsageProvider : IUsageProvider
         }
 
         return header.Date is { } date && date > now ? date - now : null;
+    }
+
+    /// <summary>
+    /// Top-level property names only, capped, for a drift diagnosis in the log. Names are structural (five_hour,
+    /// seven_day, extra_usage); no value is read, so nothing user-identifying can reach the log through here.
+    /// </summary>
+    private static string DescribeTopLevelKeys(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            return root.ValueKind.ToString();
+        }
+
+        var names = root.EnumerateObject().Take(20).Select(p => p.Name).ToList();
+        return names.Count == 0 ? "(none)" : string.Join(", ", names);
     }
 
     private void LogShapeOnce(JsonElement root)
