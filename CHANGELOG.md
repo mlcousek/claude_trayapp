@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- A rapid double refresh (for example a UI double-click) could leave a spare wake-up signal behind and fire one extra fetch on the next cycle, ignoring the manual-refresh floor; the leftover signal is now drained. A `Task.Delay` started for a wait that ended early (a refresh or an options change) no longer keeps running unobserved for up to 30 minutes.
+- Today's totals and the daily chart used the offset in force *now* to find local midnight, which is wrong by the DST delta on a transition day; midnight is now computed for the correct offset.
+- A `pricing.json` entry missing (or misspelling) `input` or `output` was silently priced at $0 instead of "cost unknown"; such an entry is now skipped, matching how an unrecognized model id is already handled.
+- The three main view models were never disposed when the app quit, so a background poll or scan event could still fire while the host was tearing down the SQLite store; they are now disposed before the host stops. A second launch signalling in the last instant of shutdown could throw past a closed flyout window; it is now guarded.
+- The "extra usage" progress bar was bound to a `Status` property that does not exist on its data context (silent, no visible effect, but a continuous binding-error trace); it now uses its own style.
+- `--capture-settings` silently skipped forcing a solid background because the helper only looked for a `Border` directly under `Window.Content`; it now finds the settings window's root through its `ScrollViewer`.
+
+### Added (tests)
+
+- Regression and gap-filling tests from a full code review: the manual-refresh floor, the DST-safe day boundary, the pricing fallback, `JsonShapeDescriber`'s PII redaction, `UsageAggregator`, `UsageSnapshotFormatter`, `EpochTime`, the JSONL scanner's locked-file path, `SingleInstance`, `TrayIconController.IconPixelSize`, `UsageWindowViewModel`'s status text and sparkline gating, and `TrayIconViewModel.Apply` driven through a real instance.
+
 ## [0.1.1] - 2026-09-07
 
 ### Added
