@@ -32,9 +32,18 @@ barrier for someone who does not already trust the project. SignPath's Foundatio
 for free. Approval is a human review taking a few days, so starting it early costs nothing and it does not block
 the winget submission.
 
-`docs/packaging.md` has the procedure: apply, create the project and signing policy, add two repository secrets,
-paste the guarded workflow block into `.github/workflows/release.yml`. The next tag then produces a signed release
-and the SmartScreen note can come out of the README.
+The repository was measured against their published conditions on 2026-09-08 and meets all of them; the two gaps
+found, missing uninstall instructions and a missing code signing policy, are now in the README. `docs/packaging.md`
+has the comparison table, the wording to put in the application, and the rest of the procedure.
+
+What is left is yours, because the form sits behind a captcha and creates an account:
+
+1. Confirm multi-factor authentication is on for your GitHub account, which they require of every team member.
+2. Apply at <https://signpath.org/apply>, using the wording in `docs/packaging.md`.
+3. On approval, create the project, artifact configuration and signing policy, add the two repository secrets, and
+   paste the guarded workflow block into `.github/workflows/release.yml`.
+4. Move the README's code signing policy into the present tense and drop the SmartScreen sentence. The next tag
+   then produces a signed release.
 
 ## Deferred from the code review of 2026-09-08
 

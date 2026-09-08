@@ -87,6 +87,30 @@ cd claude_trayapp
 dotnet run --project src/ClaudeTrayApp
 ```
 
+## Uninstall
+
+There is no installer, so removing it is three steps, all optional except the first:
+
+1. Right-click the tray icon and choose **Quit**, then delete the folder you unzipped.
+2. If you turned on **Start with Windows**, switch it off first, or delete the `ClaudeUsageTray` value under
+   `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
+3. To remove the data the app kept about your own usage, delete `%LOCALAPPDATA%\ClaudeTrayApp` (cache, history
+   database, logs) and `%APPDATA%\ClaudeTrayApp` (settings). Nothing outside those two folders is ever written, and
+   your Claude Code files are never modified.
+
+## Code signing policy
+
+Windows releases will be signed once the pending [SignPath Foundation](https://signpath.org) application is
+approved: free code signing provided by [SignPath.io](https://signpath.io), certificate by SignPath Foundation.
+Until then, releases are unsigned and SmartScreen warns on first run; verify a download with its SHA256 instead,
+as described under [Install](#install).
+
+- **Committers and reviewers:** [mlcousek](https://github.com/mlcousek), the repository owner.
+- **Approvers:** [mlcousek](https://github.com/mlcousek). Every signing request is approved by hand.
+- **Privacy policy:** see [Privacy](#privacy) below. In short, the app contacts `api.anthropic.com` for your usage
+  figures and, unless you turn the weekly update check off, `api.github.com` to ask for the latest release tag. It
+  sends nothing about you to either, and there is no telemetry.
+
 ## First run
 
 - The app looks for `%USERPROFILE%\.claude\.credentials.json`, or `%CLAUDE_CONFIG_DIR%\.credentials.json` if that

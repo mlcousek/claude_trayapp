@@ -10,17 +10,56 @@ The release exe is unsigned today. SmartScreen shows a "Windows protected your P
 runs it, which is the single biggest reason a stranger gives up on an unknown tool. SignPath's Foundation tier
 signs open-source projects for free.
 
+### Where the project already stands against their conditions
+
+Checked against <https://signpath.org/terms> on 2026-09-08. Nothing below needs work before applying.
+
+| Condition | This project |
+|---|---|
+| OSI-approved licence, no dual licensing | MIT, and every dependency is MIT, Apache-2.0 or BSD |
+| No proprietary components | None; the dependency list is enforced in `Directory.Packages.props` |
+| Actively maintained, already released | v0.1.2, released 2026-09-08 |
+| Functionality documented on the download page | README plus the release notes |
+| No hacking tools | Reads one local token belonging to the user and calls one documented-by-observation endpoint |
+| Privacy: disclose and allow disabling outbound traffic | README "Privacy" names both destinations; the update check is one setting away from off, and there is no telemetry |
+| Provide uninstallation | README "Uninstall" |
+| Code signing policy on the home page | README "Code signing policy" |
+| Signed binaries carry product name and a consistent version | `Directory.Build.props` sets `Product` and one `VersionPrefix`; the release takes the version from the tag |
+| Multi-factor authentication on the repository | Yours to confirm on your GitHub account before applying |
+| Named committers, reviewers and approvers | Single maintainer, stated in the README policy section |
+
+Two conditions are about how you work rather than what the code does, and only you can satisfy them: multi-factor
+authentication on GitHub and SignPath, and approving each signing request by hand, which the workflow already does
+by requiring a tag push.
+
 ### What only you can do
 
-1. Apply at <https://signpath.org/apply> with this repository. Approval is a human review and takes a few days.
-   Say plainly that this is an unofficial community tool that reads a local Claude Code token and calls one
-   Anthropic endpoint; that description matches the README and avoids questions later.
+1. Apply at <https://signpath.org/apply> with this repository. The form sits behind a captcha and creates an
+   account, so it has to be you. Approval is a human review and takes a few days.
+
+   What the application should say, matching what a reviewer will find in the repository:
+
+   - **Project**: Claude Usage Tray, <https://github.com/mlcousek/claude_trayapp>, MIT.
+   - **What it does**: an unofficial Windows system-tray app showing a Claude subscription's usage limits. It reads
+     the OAuth token Claude Code already stores locally to call the same usage endpoint Claude Code itself uses, and
+     derives token and cost figures from local Claude Code session logs. Not affiliated with or endorsed by
+     Anthropic, and it ships none of their branding.
+   - **What gets signed**: `ClaudeTrayApp.exe`, a self-contained single-file .NET 9 WPF build, published for
+     win-x64 and win-arm64 by `.github/workflows/release.yml` on a version tag, then zipped with `pricing.json`,
+     `LICENSE.txt` and a short `README.txt`.
+   - **Network behaviour**, since they ask about privacy: `api.anthropic.com` for the usage figures, and
+     `api.github.com` once a week for the latest release tag unless the user turns that off. Nothing about the user
+     is sent to either, and there is no telemetry.
+   - **Team**: a single maintainer who owns the repository, is the only committer, and approves every release.
+
 2. In the SignPath organisation you receive, create:
    - a **project** whose slug matches this repository, for example `claude-usage-tray`;
    - an **artifact configuration** for a zip holding a single exe (SignPath's "zip file" template signs the nested
      `ClaudeTrayApp.exe`);
    - a **signing policy** named `release-signing`, wired to the GitHub Actions trusted build system for this repo.
 3. Add the repository secret `SIGNPATH_API_TOKEN` and the repository variable `SIGNPATH_ORGANIZATION_ID`.
+4. On approval, change the README's code signing policy from "will be signed once the pending application is
+   approved" to the present tense, and drop the SmartScreen sentence from the install steps.
 
 ### The workflow change, once you have those
 
