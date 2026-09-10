@@ -1,6 +1,8 @@
 using ClaudeTrayApp.Core.Analytics;
 using ClaudeTrayApp.Core.Domain;
 using ClaudeTrayApp.Core.Storage;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ClaudeTrayApp.Charts;
 
@@ -13,38 +15,51 @@ public sealed class ChartDataLoader
     private readonly IHistoryStore _history;
     private readonly AnalyticsCalculator _calculator;
     private readonly TimeZoneInfo _zone;
+    private readonly ILogger _logger;
 
-    public ChartDataLoader(IHistoryStore history, AnalyticsCalculator calculator, TimeZoneInfo? zone = null)
+    public ChartDataLoader(IHistoryStore history, AnalyticsCalculator calculator, TimeZoneInfo? zone = null, ILogger? logger = null)
     {
         _history = history;
         _calculator = calculator;
         _zone = zone ?? TimeZoneInfo.Local;
+        _logger = logger ?? NullLogger.Instance;
     }
 
     /// <summary>
     /// Loads every chart. Codename windows whose history is flat at zero are left out of the history chart unless
     /// <paramref name="showInactiveWindows"/> asks for them, matching what the flyout lists.
+    /// Each chart loads on its own: a query that fails (a damaged database, say) leaves that one chart empty and is
+    /// logged, while the rest still load. Before, one failing query froze every chart on whatever it last showed.
     /// </summary>
     public ChartBundle Load(UsageSnapshot? snapshot, BlockAnalytics? block, int rangeHours, DateTimeOffset now, bool showInactiveWindows = false)
     {
         var from = now - TimeSpan.FromHours(Math.Max(1, rangeHours));
-        var windows = OrderKeys(_history.GetWindowKeys())
-            .Select(key => (key, WindowNameHumanizer.Humanize(key), _history.GetSeries(key, from, now)))
-            .Where(w => showInactiveWindows || IsKnown(w.key) || w.Item3.Any(p => p.Percent > 0))
-            .ToList();
-        var history = ChartDataBuilder.History(windows, from, now);
+        var history = Section(
+            "history",
+            () =>
+            {
+                var windows = OrderKeys(_history.GetWindowKeys())
+                    .Select(key => (key, WindowNameHumanizer.Humanize(key), _history.GetSeries(key, from, now)))
+                    .Where(w => showInactiveWindows || IsKnown(w.key) || w.Item3.Any(p => p.Percent > 0))
+                    .ToList();
+                return ChartDataBuilder.History(windows, from, now);
+            },
+            () => ChartDataBuilder.History([], from, now));
 
-        BurnChart? burn = null;
-        if (block is not null)
-        {
-            var fiveHour = _history.GetSeries(WindowKeys.FiveHour, block.Start, now);
-            burn = ChartDataBuilder.Burn(fiveHour, block, snapshot?.FindWindow(WindowKeys.FiveHour)?.UtilizationPercent, now, _zone);
-        }
+        var burn = block is null
+            ? null
+            : Section<BurnChart?>(
+                "5-hour block",
+                () => ChartDataBuilder.Burn(_history.GetSeries(WindowKeys.FiveHour, block.Start, now), block, snapshot?.FindWindow(WindowKeys.FiveHour)?.UtilizationPercent, now, _zone),
+                () => null);
 
         var localNow = TimeZoneInfo.ConvertTime(now, _zone);
         var today = DateOnly.FromDateTime(localNow.DateTime);
         var firstDay = new DateTimeOffset(localNow.Date, localNow.Offset).AddDays(-(ChartDataBuilder.DailyDays - 1));
-        var daily = ChartDataBuilder.Daily(_calculator.Daily(firstDay, now), today);
+        var daily = Section(
+            "daily",
+            () => ChartDataBuilder.Daily(_calculator.Daily(firstDay, now), today),
+            () => ChartDataBuilder.Daily([], today));
 
         var sparklines = new Dictionary<string, SparkData>(StringComparer.OrdinalIgnoreCase);
         foreach (var window in snapshot?.Windows ?? [])
@@ -52,7 +67,10 @@ public sealed class ChartDataLoader
             var (since, until) = SparkRange(window.Key, block, now);
             var points = burn is not null && string.Equals(window.Key, WindowKeys.FiveHour, StringComparison.OrdinalIgnoreCase)
                 ? burn.Recorded
-                : ChartDataBuilder.Sparkline(_history.GetSeries(window.Key, since, until), since, until);
+                : Section<IReadOnlyList<TimePoint>>(
+                    "sparkline",
+                    () => ChartDataBuilder.Sparkline(_history.GetSeries(window.Key, since, until), since, until),
+                    () => []);
             sparklines[window.Key] = new SparkData(since, until, points);
         }
 
@@ -89,5 +107,18 @@ public sealed class ChartDataLoader
         }
 
         return int.MaxValue;
+    }
+
+    private T Section<T>(string chart, Func<T> load, Func<T> empty)
+    {
+        try
+        {
+            return load();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "The {Chart} chart could not be loaded; the other charts are unaffected", chart);
+            return empty();
+        }
     }
 }

@@ -102,6 +102,12 @@ single-file analysers, which are errors in Release (IL3000 broke the publish onc
 - H.NotifyIcon.Wpf 2.4 dropped net9.0-windows; stay on 2.3.x (Dependabot is told so). Its `IconSource` path rejects `RenderTargetBitmap`, so the tray icon is converted to a `System.Drawing.Icon` by `IconConverter` and set through `TaskbarIcon.Icon`.
 - The tray icon is rendered at the system DPI (16/20/24/32 px). Per-monitor DPI for the taskbar is not tracked; a DPI change triggers a redraw through `SystemEvents.DisplaySettingsChanged`.
 - The Run entry points at `Environment.ProcessPath`; after the executable moves, Start with Windows reads as off until toggled again. Notifications use H.NotifyIcon's `ShowNotification`, which Windows may suppress under Focus assist.
+- `history.db` can be damaged. On 2026-09-10 a tree pointed at pages past the end of the file and every scan and chart
+  load failed with `database disk image is malformed`, right after two `--capture-*` runs had the live file open beside
+  the running app. `SqliteStore` now runs `PRAGMA quick_check` once per process; on a definite verdict (SQLITE_CORRUPT,
+  SQLITE_NOTADB, or a failed check, never merely busy) it moves the file and its `-wal`/`-shm` to
+  `history.corrupt-<time>.db`, starts fresh and copies every readable row. Capture runs neither write the database nor
+  rebuild it (`recoverCorruption: false`). `COUNT(*)` can succeed on a damaged table because SQLite answers it from an index.
 - Single-file publish runs the IL3000 family of analysers with warnings as errors: `Assembly.Location` is empty in a single-file app and fails the publish. Use `Environment.ProcessPath` or `AppContext.BaseDirectory`.
 - `Environment.GetFolderPath` ignores the `LOCALAPPDATA`, `APPDATA` and `USERPROFILE` variables (it asks the shell). `AppPaths.FromEnvironment` reads the variables first when they hold rooted paths, so a run can be pointed at a fresh profile for testing; that is how the not-signed-in, expired-token and offline states were verified against the published exe.
 

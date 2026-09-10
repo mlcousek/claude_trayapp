@@ -1,20 +1,43 @@
+using System.Globalization;
 using ClaudeTrayApp.Core.Analytics;
 using ClaudeTrayApp.Core.Domain;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ClaudeTrayApp.Core.Storage;
 
 /// <summary>
 /// One SQLite file (<c>history.db</c>) for usage events, scan offsets and snapshot history.
 /// Timestamps are stored as UTC ticks so range queries are plain integer comparisons.
+/// The file is checked once per process before first use; a damaged one is set aside, never deleted, and replaced by
+/// a fresh file holding every row that could still be read. Usage events are rebuilt from the session logs anyway;
+/// the snapshot history cannot be, which is why it is worth salvaging.
 /// </summary>
 public sealed class SqliteStore : IAnalyticsStore, IHistoryStore
 {
+    private const int SqliteCorrupt = 11;
+    private const int SqliteNotADatabase = 26;
+    private const string HistoryColumns = "timestamp_ticks, window_key, percent, resets_at_ticks";
+    private const string HistorySelect = "SELECT " + HistoryColumns + " FROM snapshot_history NOT INDEXED";
+    private const string HistoryInsert = "INSERT OR IGNORE INTO snapshot_history (" + HistoryColumns + ") VALUES ($p0, $p1, $p2, $p3)";
+    private const string EventColumns = "message_id, request_id, timestamp_ticks, model, project, session_id, input, output, cache_write_5m, cache_write_1h, cache_read";
+    private const string EventsSelect = "SELECT " + EventColumns + " FROM usage_events NOT INDEXED";
+    private const string EventsInsert = "INSERT OR IGNORE INTO usage_events (" + EventColumns + ") VALUES ($p0, $p1, $p2, $p3, $p4, $p5, $p6, $p7, $p8, $p9, $p10)";
+
     private readonly string _connectionString;
+    private readonly ILogger _logger;
+    private readonly bool _recoverCorruption;
     private readonly object _sync = new();
     private bool _initialised;
 
-    public SqliteStore(string databasePath)
+    /// <param name="databasePath">The database file; its folder is created when missing.</param>
+    /// <param name="logger">Receives the one warning a rebuild produces.</param>
+    /// <param name="recoverCorruption">
+    /// False for a process that shares the file with a running app (a screenshot run): it must never move the file
+    /// out from under the owner, so a damaged database is simply used as it is and its errors surface as usual.
+    /// </param>
+    public SqliteStore(string databasePath, ILogger<SqliteStore>? logger = null, bool recoverCorruption = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
         DatabasePath = databasePath;
@@ -25,9 +48,17 @@ public sealed class SqliteStore : IAnalyticsStore, IHistoryStore
         }
 
         _connectionString = new SqliteConnectionStringBuilder { DataSource = databasePath, Mode = SqliteOpenMode.ReadWriteCreate }.ToString();
+        _logger = logger ?? NullLogger<SqliteStore>.Instance;
+        _recoverCorruption = recoverCorruption;
     }
 
     public string DatabasePath { get; }
+
+    /// <summary>Where the damaged file was set aside when this process had to rebuild it; null when it did not.</summary>
+    public string? RecoveredFrom { get; private set; }
+
+    /// <summary>History rows and usage events copied from the damaged file into the rebuilt one.</summary>
+    public int SalvagedRows { get; private set; }
 
     public ScanState? GetScanState(string path)
     {
@@ -269,6 +300,50 @@ public sealed class SqliteStore : IAnalyticsStore, IHistoryStore
         command.ExecuteNonQuery();
     }
 
+    /// <summary>
+    /// Why the file cannot be trusted, or null when it is sound or does not exist yet. Only a definite verdict counts:
+    /// SQLite reporting corruption, or a file that is not a database. A busy or locked file is not damage.
+    /// </summary>
+    internal static string? FindDamage(string databasePath)
+    {
+        if (!File.Exists(databasePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var connection = new SqliteConnection(Unpooled(databasePath, SqliteOpenMode.ReadWrite));
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "PRAGMA quick_check(1)";
+            var verdict = command.ExecuteScalar() as string;
+            return string.Equals(verdict, "ok", StringComparison.OrdinalIgnoreCase) ? null : verdict ?? "quick_check gave no answer";
+        }
+        catch (SqliteException ex) when (ex.SqliteErrorCode is SqliteCorrupt or SqliteNotADatabase)
+        {
+            return ex.Message;
+        }
+    }
+
+    /// <summary>history.db becomes history.corrupt-20260910-064935.db, with a counter should that name be taken.</summary>
+    internal static string AsidePath(string databasePath, DateTime now)
+    {
+        var directory = Path.GetDirectoryName(databasePath) ?? string.Empty;
+        var stem = Path.GetFileNameWithoutExtension(databasePath) + ".corrupt-" + now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        var extension = Path.GetExtension(databasePath);
+        var candidate = Path.Combine(directory, stem + extension);
+        for (var i = 2; File.Exists(candidate); i++)
+        {
+            candidate = Path.Combine(directory, stem + "-" + i.ToString(CultureInfo.InvariantCulture) + extension);
+        }
+
+        return candidate;
+    }
+
+    private static string Unpooled(string path, SqliteOpenMode mode) =>
+        new SqliteConnectionStringBuilder { DataSource = path, Mode = mode, Pooling = false }.ToString();
+
     private static TokenTotals ReadTotals(SqliteDataReader reader, int start) => new(
         reader.GetInt64(start),
         reader.GetInt64(start + 1),
@@ -277,15 +352,37 @@ public sealed class SqliteStore : IAnalyticsStore, IHistoryStore
         reader.GetInt64(start + 4),
         reader.GetInt32(start + 5));
 
+    private static void CreateSchema(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            PRAGMA journal_mode = WAL;
+            CREATE TABLE IF NOT EXISTS scan_state (
+                path TEXT PRIMARY KEY, offset INTEGER NOT NULL, length INTEGER NOT NULL, mtime_ticks INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS usage_events (
+                message_id TEXT NOT NULL, request_id TEXT NOT NULL, timestamp_ticks INTEGER NOT NULL, model TEXT NOT NULL,
+                project TEXT, session_id TEXT, input INTEGER NOT NULL, output INTEGER NOT NULL,
+                cache_write_5m INTEGER NOT NULL, cache_write_1h INTEGER NOT NULL, cache_read INTEGER NOT NULL,
+                PRIMARY KEY (message_id, request_id));
+            CREATE INDEX IF NOT EXISTS ix_usage_events_time ON usage_events (timestamp_ticks);
+            CREATE TABLE IF NOT EXISTS snapshot_history (
+                timestamp_ticks INTEGER NOT NULL, window_key TEXT NOT NULL, percent REAL NOT NULL, resets_at_ticks INTEGER,
+                PRIMARY KEY (timestamp_ticks, window_key));
+            PRAGMA user_version = 1;
+            """;
+        command.ExecuteNonQuery();
+    }
+
     private SqliteConnection Open()
     {
+        EnsureInitialised();
         var connection = new SqliteConnection(_connectionString);
         connection.Open();
-        EnsureSchema(connection);
         return connection;
     }
 
-    private void EnsureSchema(SqliteConnection connection)
+    /// <summary>Once per process, before any connection is handed out: check the file, rebuild it if damaged, create the schema.</summary>
+    private void EnsureInitialised()
     {
         lock (_sync)
         {
@@ -294,24 +391,111 @@ public sealed class SqliteStore : IAnalyticsStore, IHistoryStore
                 return;
             }
 
-            using var command = connection.CreateCommand();
-            command.CommandText = """
-                PRAGMA journal_mode = WAL;
-                CREATE TABLE IF NOT EXISTS scan_state (
-                    path TEXT PRIMARY KEY, offset INTEGER NOT NULL, length INTEGER NOT NULL, mtime_ticks INTEGER NOT NULL);
-                CREATE TABLE IF NOT EXISTS usage_events (
-                    message_id TEXT NOT NULL, request_id TEXT NOT NULL, timestamp_ticks INTEGER NOT NULL, model TEXT NOT NULL,
-                    project TEXT, session_id TEXT, input INTEGER NOT NULL, output INTEGER NOT NULL,
-                    cache_write_5m INTEGER NOT NULL, cache_write_1h INTEGER NOT NULL, cache_read INTEGER NOT NULL,
-                    PRIMARY KEY (message_id, request_id));
-                CREATE INDEX IF NOT EXISTS ix_usage_events_time ON usage_events (timestamp_ticks);
-                CREATE TABLE IF NOT EXISTS snapshot_history (
-                    timestamp_ticks INTEGER NOT NULL, window_key TEXT NOT NULL, percent REAL NOT NULL, resets_at_ticks INTEGER,
-                    PRIMARY KEY (timestamp_ticks, window_key));
-                PRAGMA user_version = 1;
-                """;
-            command.ExecuteNonQuery();
+            if (_recoverCorruption && FindDamage(DatabasePath) is { } damage)
+            {
+                Rebuild(damage);
+            }
+
+            using var connection = new SqliteConnection(_connectionString);
+            connection.Open();
+            CreateSchema(connection);
             _initialised = true;
         }
+    }
+
+    private void Rebuild(string damage)
+    {
+        var aside = AsidePath(DatabasePath, DateTime.Now);
+        try
+        {
+            File.Move(DatabasePath, aside);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogError(ex, "history.db is damaged ({Damage}) but could not be set aside, so it stays in use", damage);
+            return;
+        }
+
+        // The write-ahead log travels with its database: it may hold the newest good pages.
+        foreach (var suffix in new[] { "-wal", "-shm" })
+        {
+            if (File.Exists(DatabasePath + suffix))
+            {
+                try
+                {
+                    File.Move(DatabasePath + suffix, aside + suffix);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    _logger.LogWarning("{File} could not be set aside with the damaged database ({Reason})", Path.GetFileName(DatabasePath) + suffix, ex.GetType().Name);
+                }
+            }
+        }
+
+        RecoveredFrom = aside;
+        using var fresh = new SqliteConnection(Unpooled(DatabasePath, SqliteOpenMode.ReadWriteCreate));
+        fresh.Open();
+        CreateSchema(fresh);
+
+        var history = 0;
+        var events = 0;
+        try
+        {
+            using var damaged = new SqliteConnection(Unpooled(aside, SqliteOpenMode.ReadOnly));
+            damaged.Open();
+            history = Salvage(damaged, fresh, history: true);
+            events = Salvage(damaged, fresh, history: false);
+        }
+        catch (SqliteException ex)
+        {
+            _logger.LogWarning("Nothing could be read from the damaged database ({Reason})", ex.Message);
+        }
+
+        SalvagedRows = history + events;
+        _logger.LogWarning(
+            "history.db was damaged ({Damage}). It was set aside as {Aside} and a fresh database started with the {History} history rows and {Events} usage events that could still be read; the session logs are re-read to fill in the rest",
+            damage,
+            aside,
+            history,
+            events);
+    }
+
+    /// <summary>Copies rows until the damaged table stops yielding them, and keeps whatever was read before that point.</summary>
+    private int Salvage(SqliteConnection damaged, SqliteConnection fresh, bool history)
+    {
+        var columns = history ? 4 : 11;
+        var copied = 0;
+        using var transaction = fresh.BeginTransaction();
+        using var insert = fresh.CreateCommand();
+        insert.Transaction = transaction;
+        insert.CommandText = history ? HistoryInsert : EventsInsert;
+        var parameters = new SqliteParameter[columns];
+        for (var i = 0; i < columns; i++)
+        {
+            parameters[i] = insert.Parameters.Add(new SqliteParameter("$p" + i.ToString(CultureInfo.InvariantCulture), DBNull.Value));
+        }
+
+        try
+        {
+            using var select = damaged.CreateCommand();
+            select.CommandText = history ? HistorySelect : EventsSelect;
+            using var reader = select.ExecuteReader();
+            while (reader.Read())
+            {
+                for (var i = 0; i < columns; i++)
+                {
+                    parameters[i].Value = reader.IsDBNull(i) ? DBNull.Value : reader.GetValue(i);
+                }
+
+                copied += insert.ExecuteNonQuery();
+            }
+        }
+        catch (SqliteException ex)
+        {
+            _logger.LogDebug("Salvage of {Table} stopped after {Rows} rows: {Reason}", history ? "snapshot_history" : "usage_events", copied, ex.Message);
+        }
+
+        transaction.Commit();
+        return copied;
     }
 }

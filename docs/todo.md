@@ -91,6 +91,16 @@ correctly, so the code path itself is sound.
 logon fits the first half; nothing yet explains the silent write. Worth a `LastError`-aware log line and treating
 "the file is not there" as a claim to verify rather than trust, before deciding it is environmental.
 
+### history.db damaged beside a second process
+
+On 2026-09-10 `history.db` became unreadable (`usage_events` and `scan_state` trees pointing at pages past the end
+of the file) and every history row older than 06:50 vanished from the table. The main file was last written at
+06:49:35, as a `--capture-settings` run exited while the installed app still had the database open; one process saw
+the file as malformed while the other kept reading and writing it. That points to the capture process checkpointing
+and resetting the WAL under the other, but SQLite's own locking should prevent exactly that, so the mechanism is
+unproven. Capture runs no longer write the database, and a damaged file is now rebuilt at start. The lost history
+was recovered by hand from orphaned pages and old WAL frames; the app does not attempt that itself.
+
 ## Ideas, not committed to
 
 ### Use the endpoint's own severity instead of invented thresholds

@@ -82,7 +82,7 @@ public partial class App : Application
             var builder = Host.CreateApplicationBuilder();
             builder.Logging.ClearProviders();
             builder.Services.AddSerilog();
-            ConfigureServices(builder.Services, paths, version, headless: probe || renderIconsDirectory is not null);
+            ConfigureServices(builder.Services, paths, version, headless: probe || renderIconsDirectory is not null, capturing);
             _host = builder.Build();
 
             // Start off the UI thread: hosted services must not inherit the dispatcher context.
@@ -204,7 +204,7 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    private void ConfigureServices(IServiceCollection services, AppPaths paths, string version, bool headless)
+    private void ConfigureServices(IServiceCollection services, AppPaths paths, string version, bool headless, bool capturing)
     {
         services.AddSingleton(paths);
         services.AddSingleton(TimeProvider.System);
@@ -226,7 +226,8 @@ public partial class App : Application
         services.AddSingleton<UsagePoller>();
 
         // Local analytics: session logs into SQLite, priced from the bundled pricing.json.
-        services.AddSingleton(_ => new SqliteStore(paths.DatabaseFile));
+        // A screenshot run shares the file with the running app, so it never rebuilds a damaged one; see SqliteStore.
+        services.AddSingleton(sp => new SqliteStore(paths.DatabaseFile, sp.GetRequiredService<ILogger<SqliteStore>>(), recoverCorruption: !capturing));
         services.AddSingleton<IAnalyticsStore>(sp => sp.GetRequiredService<SqliteStore>());
         services.AddSingleton<IHistoryStore>(sp => sp.GetRequiredService<SqliteStore>());
         services.AddSingleton(sp => new HistoryOptions { RetentionDays = sp.GetRequiredService<SettingsStore>().Current.HistoryRetentionDays });
@@ -324,6 +325,13 @@ public partial class App : Application
         if (!headless)
         {
             services.AddHostedService<UsagePollerService>();
+        }
+
+        // A screenshot run (--capture-*) skips the single-instance check, so it can run beside the real app. It may read
+        // the database but must never write it: a second writer is the prime suspect for the damaged history.db of
+        // 2026-09-10. Nor does it check for updates.
+        if (!headless && !capturing)
+        {
             services.AddHostedService<LocalAnalyticsService>();
             services.AddHostedService<HistoryRecorderService>();
             services.AddHostedService(sp => new UpdateCheckService(

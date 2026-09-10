@@ -83,4 +83,43 @@ public class ChartDataLoaderTests
         history.Received(1).GetSeries("five_hour", Now.AddHours(-24), Now);
         history.Received(1).GetSeries("five_hour", block.Start, Now);
     }
+
+    [Fact]
+    public void A_failing_daily_query_leaves_the_history_chart_intact()
+    {
+        var history = Substitute.For<IHistoryStore>();
+        history.GetWindowKeys().Returns(["five_hour"]);
+        history.GetSeries(Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>())
+            .Returns(_ => new List<HistoryPoint> { new(Now.AddHours(-1), 10, null), new(Now.AddMinutes(-5), 30, null) });
+        var store = Substitute.For<IAnalyticsStore>();
+        store.DailyTotals(Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>(), Arg.Any<TimeSpan>())
+            .Returns(_ => throw new InvalidOperationException("database disk image is malformed"));
+        var loader = new ChartDataLoader(history, new AnalyticsCalculator(store, () => PricingTable.Empty, TimeZoneInfo.Utc), TimeZoneInfo.Utc);
+
+        var bundle = loader.Load(null, null, 24, Now);
+
+        bundle.History.HasData.ShouldBeTrue();
+        bundle.History.Series.Single().Key.ShouldBe("five_hour");
+        bundle.Daily.HasData.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void A_failing_history_store_still_leaves_the_daily_chart()
+    {
+        var history = Substitute.For<IHistoryStore>();
+        history.GetWindowKeys().Returns(_ => throw new InvalidOperationException("database disk image is malformed"));
+        history.GetSeries(Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>())
+            .Returns(_ => throw new InvalidOperationException("database disk image is malformed"));
+        var store = Substitute.For<IAnalyticsStore>();
+        store.DailyTotals(Arg.Any<DateTimeOffset>(), Arg.Any<DateTimeOffset>(), Arg.Any<TimeSpan>())
+            .Returns([new DailyModelTotals(new DateOnly(2026, 9, 7), "claude-fable-5-1", new TokenTotals(50, 0, 0, 0, 0, 1))]);
+        var snapshot = new UsageSnapshot([UsageWindow.Create("seven_day", 12, Now.AddDays(2))], "max", null, null, Now, UsageSource.Live);
+        var loader = new ChartDataLoader(history, new AnalyticsCalculator(store, () => PricingTable.Empty, TimeZoneInfo.Utc), TimeZoneInfo.Utc);
+
+        var bundle = loader.Load(snapshot, null, 24, Now);
+
+        bundle.History.HasData.ShouldBeFalse();
+        bundle.Daily.HasData.ShouldBeTrue();
+        bundle.Sparklines["seven_day"].Points.ShouldBeEmpty();
+    }
 }

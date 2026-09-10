@@ -21,6 +21,18 @@ All notable changes to this project are documented here. The format follows
 - The startup entry sits behind an `IAutostartEntry` interface, so the behaviour around it is covered by tests
   that never touch the real registry.
 
+### Fixed
+
+- A damaged `history.db` stopped everything that reads it: every session-log scan failed and the flyout's charts
+  froze on stale data, which looked like history not being saved at all (`database disk image is malformed` in the
+  log). The app now checks the file once at start; a damaged one is set aside as `history.corrupt-<time>.db`, never
+  deleted, and a fresh database starts with every history row and usage event that can still be read. Usage events
+  refill from the session logs; the percentage history cannot, which is why it is salvaged.
+- Each chart now loads on its own, so one failing query leaves only that chart empty instead of freezing them all.
+- Screenshot runs (`--capture-flyout`, `--capture-settings`) no longer run the session-log scanner, the history
+  recorder or the update check, and never rebuild the database. They skip the single-instance check, so they can run
+  beside the real app, and a second process writing the live database is the prime suspect for the damage.
+
 ### Added (tests)
 
 - `LocalAnalyticsProvider`, previously untested: the initial scan, the file watcher, manual rescans, the safety-net

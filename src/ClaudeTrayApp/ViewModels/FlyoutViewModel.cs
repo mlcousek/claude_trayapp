@@ -171,7 +171,7 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
         _openSettings = openSettings;
         _logger = logger;
         _status = poller.Status;
-        _chartLoader = new ChartDataLoader(history, calculator, clock.LocalTimeZone);
+        _chartLoader = new ChartDataLoader(history, calculator, clock.LocalTimeZone, logger);
         Charts = new ChartsViewModel(ChartPalette.FromApplication(), clock.LocalTimeZone);
         ApplySettings(settings.Current);
         Charts.RangeChanged += OnChartRangeChanged;
