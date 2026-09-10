@@ -76,6 +76,21 @@ thin interface over `ThemeManager`'s reads would close the rest.
 reloads only when the path differs, history prunes only when retention changed, the theme reapplies only when the
 resolved override differs.
 
+## Seen once, not explained
+
+### settings.json reported missing at logon, then not written
+
+On the boot of 2026-09-10 the app logged `No settings file at %APPDATA%\ClaudeTrayApp\settings.json; writing the
+defaults` 30 ms after start, yet the file was there all along and its timestamp never moved: the run went on with
+`AppSettings.Default` instead of the user's saved settings, and `Save` logged no failure, which its one non-throwing
+path says it should have. The same line appears once more, on the very first run of 2026-09-07. Every other launch
+since, including three the same morning, found and read the file, and a first run against a fresh profile writes it
+correctly, so the code path itself is sound.
+
+`File.Exists` returns false for a denied read as readily as for a missing file, so a scanner holding the file at
+logon fits the first half; nothing yet explains the silent write. Worth a `LastError`-aware log line and treating
+"the file is not there" as a claim to verify rather than trust, before deciding it is environmental.
+
 ## Ideas, not committed to
 
 ### Use the endpoint's own severity instead of invented thresholds
