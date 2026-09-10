@@ -48,6 +48,20 @@
                     <TextBlock Style="{StaticResource CaptionText}" Foreground="{DynamicResource DangerBrush}" Text="{Binding FileError}" TextWrapping="Wrap" />
                 </Border>
 
+                <!-- Startup -->
+                <TextBlock Style="{StaticResource SectionTitle}" Text="Startup" />
+                <CheckBox Style="{StaticResource Check}"
+                          Content="Start with Windows"
+                          IsChecked="{Binding StartWithWindows}"
+                          AutomationProperties.Name="Start with Windows" />
+                <TextBlock Style="{StaticResource Note}"
+                           Margin="0,-2,0,0"
+                           Text="On by default. A per-user startup entry, no administrator rights." />
+                <TextBlock Style="{StaticResource Note}"
+                           Foreground="{DynamicResource WarnBrush}"
+                           Text="{Binding StartupNote}"
+                           Visibility="{Binding StartupNote, Converter={StaticResource TextToVisibility}}" />
+
                 <!-- Refresh -->
                 <TextBlock Style="{StaticResource SectionTitle}" Text="Refresh" />
                 <Grid Style="{StaticResource Row}">
@@ -82,11 +96,6 @@
                               DisplayMemberPath="Label"
                               AutomationProperties.Name="Window shown in the tray icon" />
                 </Grid>
-                <CheckBox Style="{StaticResource Check}"
-                          Content="Start with Windows (a per-user startup entry, no administrator rights)"
-                          IsChecked="{Binding StartWithWindows}"
-                          AutomationProperties.Name="Start with Windows" />
-                <TextBlock Style="{StaticResource Note}" Margin="0,-2,0,0" Text="{Binding StartupNote}" Visibility="{Binding StartupNote, Converter={StaticResource TextToVisibility}}" />
 
                 <!-- Flyout -->
                 <TextBlock Style="{StaticResource SectionTitle}" Text="Flyout" />

@@ -74,7 +74,8 @@ The tray icon in every state and size, on a dark and a light taskbar (native ren
 3. Unzip anywhere and run `ClaudeTrayApp.exe`. The zip holds the app (one self-contained exe), `pricing.json`,
    `LICENSE.txt` and a short `README.txt`; keep the exe and `pricing.json` together. There is no installer and no
    admin prompt. The exe is not code-signed, so SmartScreen may ask once: choose **More info**, then **Run anyway**.
-4. Optional: right-click the tray icon and choose **Start with Windows**.
+4. From now on it starts with Windows. To stop that, clear **Start with Windows** at the top of the
+   Settings window, or untick it in the tray menu; it is asked once and never turned back on.
 
 Each release is built by the [release workflow](.github/workflows/release.yml) from the tagged commit; the same
 zips are attached to the workflow run as an artifact.
@@ -92,10 +93,13 @@ dotnet run --project src/ClaudeTrayApp
 There is no installer, so removing it is three steps, all optional except the first:
 
 1. Right-click the tray icon and choose **Quit**, then delete the folder you unzipped.
-2. If you turned on **Start with Windows**, switch it off first, or delete the `ClaudeUsageTray` value under
-   `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
+2. Delete the `ClaudeUsageTray` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (the startup
+   entry, present unless you turned it off), and the `HKCU\Software\ClaudeUsageTray` key, which holds one flag
+   recording that the entry has been created once. Switching **Start with Windows** off in the app removes
+   the first but deliberately keeps the second, so it is not created again.
 3. To remove the data the app kept about your own usage, delete `%LOCALAPPDATA%\ClaudeTrayApp` (cache, history
-   database, logs) and `%APPDATA%\ClaudeTrayApp` (settings). Nothing outside those two folders is ever written, and
+   database, logs) and `%APPDATA%\ClaudeTrayApp` (settings). Nothing outside those two folders and the two
+   registry values above is ever written, and
    your Claude Code files are never modified.
 
 ## Code signing policy
@@ -127,7 +131,7 @@ Open **Settings** from the tray menu or from the flyout. Every change applies at
 runs; a file that does not parse is left untouched and reported in the Settings window.
 
 <p>
-  <img src="docs/screenshots/settings-dark.png" alt="The settings window: poll interval, the window shown in the tray icon, Start with Windows, theme, history chart range, mask email, show local analytics, threshold notifications, history retention with Clear history, and the pricing file; the footer shows the settings.json path with Open folder and Reset to defaults" width="400">
+  <img src="docs/screenshots/settings-dark.png" alt="The settings window: a Startup section at the top holding Start with Windows, then the poll interval, the window shown in the tray icon, theme, history chart range, mask email, show local analytics, the extra usage line, inactive codename windows, threshold notifications, history retention with Clear history, and the pricing file; the panel scrolls on to a footer with the settings.json path, Open folder and Reset to defaults" width="400">
 </p>
 
 | Key | Default | What it does |
@@ -146,8 +150,10 @@ runs; a file that does not parse is left untouched and reported in the Settings 
 | `checkForUpdates` | `true` | Ask GitHub once a week whether a newer release exists and say so in a notification. Nothing is downloaded or installed for you. |
 | `pricingFilePath` | `null` | Path to your own `pricing.json`; `null` means the bundled file. |
 
-**Start with Windows** is not stored in the file: it is an opt-in, per-user `HKCU\...\Run` entry, toggled from the
-tray menu or the Settings window and never needing administrator rights.
+**Start with Windows** is not stored in the file: it is a per-user `HKCU\...\Run` entry, on by default and
+switched off at the top of the Settings window or from the tray menu, never needing administrator rights. The
+first launch creates it and records that under `HKCU\Software\ClaudeUsageTray`, so it is offered once: turn it off and it
+stays off.
 
 Only one instance runs per session. Launching the app again opens the running instance's flyout and exits.
 

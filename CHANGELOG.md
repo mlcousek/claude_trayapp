@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The app now starts with Windows by default. The first launch creates the per-user startup entry and records
+  that it has done so, so it happens exactly once: clear **Start with Windows** and it stays cleared. Nothing
+  is elevated, and the entry is still the same `ClaudeUsageTray` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
+  it always was.
+
+### Changed
+
+- **Start with Windows** has moved to a **Startup** section at the top of the Settings window, where it is the
+  first thing you see, instead of sitting inside **Tray icon**. The note beside it now appears only when
+  Windows refuses the change.
+- The startup entry sits behind an `IAutostartEntry` interface, so the behaviour around it is covered by tests
+  that never touch the real registry.
+
 ## [0.1.2] - 2026-09-08
 
 ### Added

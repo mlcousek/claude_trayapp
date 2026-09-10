@@ -44,7 +44,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     ];
 
     private readonly SettingsStore _store;
-    private readonly AutostartManager _autostart;
+    private readonly IAutostartEntry _autostart;
     private readonly PricingProvider _pricing;
     private readonly UsagePoller _poller;
     private readonly IHistoryStore _history;
@@ -126,7 +126,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 
     public SettingsViewModel(
         SettingsStore store,
-        AutostartManager autostart,
+        IAutostartEntry autostart,
         PricingProvider pricing,
         UsagePoller poller,
         IHistoryStore history,
@@ -335,7 +335,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 
         if (_autostart.TrySet(value, out var error))
         {
-            StartupNote = value ? "Starts when you sign in to Windows." : null;
+            // The checkbox and the caption beside it already say what the state is; the note is for refusals only.
+            StartupNote = null;
             return;
         }
 

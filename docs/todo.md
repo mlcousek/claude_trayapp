@@ -67,9 +67,10 @@ model count and effective date, so an in-place price edit updates the table with
 
 ### A registry abstraction, so the last untested pieces can be tested
 
-`ThemeManager` reads the Windows theme from the registry and `AutostartManager` writes the Run entry, so neither can
-be covered without touching the real machine; the tests deliberately exercise only their pure helpers today. A thin
-interface over those reads and writes would close that.
+`ThemeManager` reads the Windows theme from the registry, so it cannot be covered without touching the real machine;
+its tests deliberately exercise only pure helpers. `AutostartManager` now sits behind `IAutostartEntry`, which is how
+`AutostartDefault` is tested against a fake, but the manager's own registry reads and writes are still uncovered. A
+thin interface over `ThemeManager`'s reads would close the rest.
 
 `SettingsCoordinator` is untested for the same practical reasons, and it holds real logic worth pinning: pricing
 reloads only when the path differs, history prunes only when retention changed, the theme reapplies only when the

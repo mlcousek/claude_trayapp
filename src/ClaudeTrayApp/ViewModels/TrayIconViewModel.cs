@@ -29,7 +29,7 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
     private readonly AppPaths _paths;
     private readonly SettingsStore _settings;
     private readonly ThresholdNotifier _notifier;
-    private readonly AutostartManager _autostart;
+    private readonly IAutostartEntry _autostart;
     private readonly TimeProvider _clock;
     private readonly Dispatcher _dispatcher;
     private readonly Action _openSettings;
@@ -52,7 +52,7 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
         AppPaths paths,
         SettingsStore settings,
         ThresholdNotifier notifier,
-        AutostartManager autostart,
+        IAutostartEntry autostart,
         TimeProvider clock,
         Dispatcher dispatcher,
         Action openSettings,

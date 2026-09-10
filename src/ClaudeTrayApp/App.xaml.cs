@@ -120,6 +120,12 @@ public partial class App : Application
                 return;
             }
 
+            // Start with Windows is on by default, applied once and never again; a screenshot run must not touch it.
+            if (!capturing)
+            {
+                _host.Services.GetRequiredService<AutostartDefault>().Apply();
+            }
+
             _tray = _host.Services.GetRequiredService<TrayIconController>();
             _flyout = _host.Services.GetRequiredService<FlyoutWindow>();
             _settingsWindows = _host.Services.GetRequiredService<SettingsWindowHost>();
@@ -261,6 +267,10 @@ public partial class App : Application
         services.AddSingleton(sp => new AutostartManager(
             Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "ClaudeTrayApp.exe"),
             sp.GetRequiredService<ILogger<AutostartManager>>()));
+        services.AddSingleton<IAutostartEntry>(sp => sp.GetRequiredService<AutostartManager>());
+        services.AddSingleton(sp => new AutostartDefault(
+            sp.GetRequiredService<IAutostartEntry>(),
+            sp.GetRequiredService<ILogger<AutostartDefault>>()));
         services.AddSingleton(sp => new SettingsCoordinator(
             sp.GetRequiredService<SettingsStore>(),
             sp.GetRequiredService<UsagePoller>(),
@@ -274,7 +284,7 @@ public partial class App : Application
         services.AddSingleton(sp => new SettingsWindowHost(sp));
         services.AddSingleton(sp => new SettingsViewModel(
             sp.GetRequiredService<SettingsStore>(),
-            sp.GetRequiredService<AutostartManager>(),
+            sp.GetRequiredService<IAutostartEntry>(),
             sp.GetRequiredService<PricingProvider>(),
             sp.GetRequiredService<UsagePoller>(),
             sp.GetRequiredService<IHistoryStore>(),
@@ -288,7 +298,7 @@ public partial class App : Application
             paths,
             sp.GetRequiredService<SettingsStore>(),
             sp.GetRequiredService<ThresholdNotifier>(),
-            sp.GetRequiredService<AutostartManager>(),
+            sp.GetRequiredService<IAutostartEntry>(),
             sp.GetRequiredService<TimeProvider>(),
             Dispatcher,
             () => sp.GetRequiredService<SettingsWindowHost>().Show(),

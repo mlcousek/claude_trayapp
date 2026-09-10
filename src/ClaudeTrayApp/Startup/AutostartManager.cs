@@ -6,13 +6,15 @@ using Microsoft.Win32;
 namespace ClaudeTrayApp.Startup;
 
 /// <summary>
-/// The per-user "Start with Windows" entry: a value under HKCU\...\Run pointing at this executable. Opt-in, never
-/// written unless the user asks, and never needs elevation.
+/// The per-user "Start with Windows" entry: a value under HKCU\...\Run pointing at this executable. On by default,
+/// switched off from the settings window or the tray menu, and never needs elevation.
 /// </summary>
-public sealed class AutostartManager
+public sealed class AutostartManager : IAutostartEntry
 {
     public const string ValueName = "ClaudeUsageTray";
+    internal const string DefaultAppliedValueName = "StartupDefaultApplied";
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    private const string AppKeyPath = @"Software\ClaudeUsageTray";
 
     private readonly string _executablePath;
     private readonly ILogger<AutostartManager> _logger;
@@ -43,7 +45,7 @@ public sealed class AutostartManager
     }
 
     /// <summary>Creates or removes the Run entry. Returns false with a user-facing reason when the registry refuses.</summary>
-    public bool TrySet(bool enabled, out string? error)
+    public bool TrySet(bool enabled, out string? reason)
     {
         try
         {
@@ -59,14 +61,49 @@ public sealed class AutostartManager
                 _logger.LogInformation("Start with Windows disabled");
             }
 
-            error = null;
+            reason = null;
             return true;
         }
         catch (Exception ex) when (ex is SecurityException or IOException or UnauthorizedAccessException)
         {
             _logger.LogWarning(ex, "The Run key could not be changed");
-            error = "Windows refused to change the startup entry: " + ex.Message;
+            reason = "Windows refused to change the startup entry: " + ex.Message;
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Whether the start-with-Windows default has already been applied once. The mark lives in the registry beside
+    /// the entry it guards rather than in settings.json, so a settings file that is missing or unreadable for a
+    /// moment can never talk the app into re-creating a startup entry the user deliberately removed.
+    /// </summary>
+    public bool WasDefaultApplied()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(AppKeyPath);
+            return key?.GetValue(DefaultAppliedValueName) is int and not 0;
+        }
+        catch (Exception ex) when (ex is SecurityException or IOException or UnauthorizedAccessException)
+        {
+            // Unreadable reads as "already applied": the cost of not enabling autostart is far smaller than the cost
+            // of forcing it back on at every launch.
+            _logger.LogWarning(ex, "The startup default marker could not be read");
+            return true;
+        }
+    }
+
+    /// <summary>Records that the default has been applied. A refusal only means it is attempted again next launch.</summary>
+    public void MarkDefaultApplied()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(AppKeyPath, writable: true);
+            key.SetValue(DefaultAppliedValueName, 1, RegistryValueKind.DWord);
+        }
+        catch (Exception ex) when (ex is SecurityException or IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "The startup default marker could not be written");
         }
     }
 
