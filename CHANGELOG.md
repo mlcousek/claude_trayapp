@@ -21,6 +21,17 @@ All notable changes to this project are documented here. The format follows
 - The startup entry sits behind an `IAutostartEntry` interface, so the behaviour around it is covered by tests
   that never touch the real registry.
 
+### Added (tests)
+
+- `LocalAnalyticsProvider`, previously untested: the initial scan, the file watcher, manual rescans, the safety-net
+  rescan when the session-log folder appears later, debouncing of rapid requests, a failing scan that is logged
+  without stopping the loop, and prompt shutdown.
+- `UpdateCheckService`: nothing is asked while the setting is off or before a check is due, a release is announced
+  once and a later one in its turn, and a failed or throwing check is recorded without an announcement.
+- `SettingsCoordinator`: retention and the scanner cutoff applied at start without pruning, an immediate prune on a
+  retention change, and a pricing file that reloads only when its path really changes.
+- `UpdateNotifier`, `IconConverter`, the ring and chart geometry helpers, and the note-line visibility converter.
+
 ## [0.1.2] - 2026-09-08
 
 ### Added

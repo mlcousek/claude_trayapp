@@ -72,9 +72,9 @@ its tests deliberately exercise only pure helpers. `AutostartManager` now sits b
 `AutostartDefault` is tested against a fake, but the manager's own registry reads and writes are still uncovered. A
 thin interface over `ThemeManager`'s reads would close the rest.
 
-`SettingsCoordinator` is untested for the same practical reasons, and it holds real logic worth pinning: pricing
-reloads only when the path differs, history prunes only when retention changed, the theme reapplies only when the
-resolved override differs.
+`SettingsCoordinator` is now covered for retention, pruning and the pricing path. Two branches still are not: the
+theme, because applying one needs a running WPF application, and the poll-interval push, because `UsagePoller`
+keeps its options private to Core.
 
 ## Seen once, not explained
 
