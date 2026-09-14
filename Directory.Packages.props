@@ -7,8 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup Label="Hosting and logging (9.0.x line to match the net9.0 runtime)">
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.19" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.19" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.20" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.20" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="9.0.19" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.19" />
     <PackageVersion Include="Serilog.Extensions.Hosting" Version="9.0.0" />
@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup Label="Storage">
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="9.0.19" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="9.0.20" />
   </ItemGroup>
 
   <ItemGroup Label="Tests">
