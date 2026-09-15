@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-09-15
+
 ### Fixed
 
 - With monitors at different scaling (a 200 % laptop screen beside 100 % displays), or after reconnecting monitors,
@@ -141,7 +143,8 @@ First release. Everything below is new in this version.
 - Single-file publish failed with IL3000: the Start with Windows wiring fell back to `Assembly.Location`, which is empty in a single-file app. It now falls back to the exe next to `AppContext.BaseDirectory`.
 - Core awaits use `ConfigureAwait(false)` and the host starts and stops off the UI thread, so quitting no longer waits five seconds for the polling loop.
 
-[Unreleased]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.0...v0.1.1
