@@ -24,9 +24,11 @@ public partial class FlyoutWindow : Window
     private readonly ThemeManager _theme;
     private readonly ILogger<FlyoutWindow> _logger;
     private readonly DispatcherTimer _tick = new() { Interval = TimeSpan.FromSeconds(30) };
+    private readonly double _designWidth;
     private nint _handle;
     private DateTime _hiddenAt = DateTime.MinValue;
     private POINT _anchor;
+    private bool _placing;
 
     public FlyoutWindow(FlyoutViewModel viewModel, ThemeManager theme, ILogger<FlyoutWindow> logger)
     {
@@ -35,6 +37,7 @@ public partial class FlyoutWindow : Window
         _logger = logger;
 
         InitializeComponent();
+        _designWidth = Width;
         DataContext = viewModel;
 
         _tick.Tick += (_, _) => _viewModel.Tick();
@@ -128,13 +131,30 @@ public partial class FlyoutWindow : Window
         base.OnKeyDown(e);
     }
 
+    /// <summary>
+    /// Windows answers a DPI change (the flyout moved to another monitor, or monitors were reconnected, even while it
+    /// was hidden) with a rescaled rectangle that WPF applies as a manual resize. Once the layout has settled, put the
+    /// size contract back and, if the flyout is open, re-anchor it to the icon it was opened from.
+    /// </summary>
     protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
     {
         base.OnDpiChanged(oldDpi, newDpi);
-        if (IsVisible && NativeMethods.GetCursorPos(out _anchor))
-        {
-            Dispatcher.BeginInvoke(() => Place(_anchor), DispatcherPriority.Loaded);
-        }
+        _logger.LogDebug("Flyout DPI changed from {Old} to {New}", oldDpi.PixelsPerDip, newDpi.PixelsPerDip);
+        Dispatcher.BeginInvoke(
+            () =>
+            {
+                if (_placing)
+                {
+                    return;
+                }
+
+                RestoreSizeToContent(this, _designWidth);
+                if (IsVisible)
+                {
+                    Place(_anchor);
+                }
+            },
+            DispatcherPriority.Loaded);
     }
 
     /// <summary>Content that arrives after the open (chart data, wrapped text) changes the height; keep hugging the taskbar edge.</summary>
@@ -144,6 +164,26 @@ public partial class FlyoutWindow : Window
         {
             Place(_anchor);
         }
+    }
+
+    /// <summary>
+    /// The flyout's layout contract: the design width, and a height that follows the content. A DPI change breaks
+    /// both (SizeToContent drops to Manual, the width is rescaled and the height sticks at the work area), so this runs
+    /// before every measurement. Returns true when anything had to be put back.
+    /// </summary>
+    internal static bool RestoreSizeToContent(Window window, double designWidth)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        var broken = window.SizeToContent != SizeToContent.Height || Math.Abs(window.Width - designWidth) > 0.5;
+        if (!broken)
+        {
+            return false;
+        }
+
+        window.Width = designWidth;
+        window.ClearValue(HeightProperty);
+        window.SizeToContent = SizeToContent.Height;
+        return true;
     }
 
     protected override void OnClosed(EventArgs e)
@@ -156,14 +196,30 @@ public partial class FlyoutWindow : Window
         base.OnClosed(e);
     }
 
-    /// <summary>Positions the window in physical pixels on the monitor under the anchor, hugging the taskbar edge.</summary>
+    /// <summary>
+    /// Positions the window in physical pixels on the monitor under the anchor, hugging the taskbar edge. Re-entrant
+    /// calls (the resize and DPI events this placement itself causes) are ignored rather than allowed to bounce.
+    /// </summary>
     private void Place(POINT anchor)
     {
-        if (_handle == 0)
+        if (_handle == 0 || _placing)
         {
             return;
         }
 
+        _placing = true;
+        try
+        {
+            PlaceOnMonitor(anchor);
+        }
+        finally
+        {
+            _placing = false;
+        }
+    }
+
+    private void PlaceOnMonitor(POINT anchor)
+    {
         var monitor = NativeMethods.MonitorFromPoint(anchor, NativeMethods.MonitorDefaultToNearest);
         var info = new MONITORINFO { Size = (uint)System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFO>() };
         if (monitor == 0 || !NativeMethods.GetMonitorInfo(monitor, ref info))
@@ -179,13 +235,28 @@ public partial class FlyoutWindow : Window
 
         var margin = (int)Math.Round(12 * scale);
 
+        // Step onto the target monitor first when its DPI differs from the window's. The DPI change (and WPF's
+        // rescaled resize) then happens here, before anything is measured, instead of during the final move, where
+        // it used to leave a half-width, work-area-tall window behind.
+        if (Math.Abs(VisualTreeHelper.GetDpi(this).DpiScaleX - scale) > 0.01)
+        {
+            NativeMethods.SetWindowPos(_handle, 0, info.Work.Left + margin, info.Work.Top + margin, 0, 0, NativeMethods.SwpNoSize | NativeMethods.SwpNoZOrder | NativeMethods.SwpNoActivate);
+            _logger.LogDebug("Flyout moved onto a monitor at {Scale:0.##}x before measuring", scale);
+        }
+
+        if (RestoreSizeToContent(this, _designWidth))
+        {
+            _logger.LogDebug("Flyout size restored to {Width} DIP wide, height from content", _designWidth);
+        }
+
         // Never taller than the work area: the body scrolls instead.
         var maxHeight = Math.Floor((info.Work.Bottom - info.Work.Top - (2 * margin)) / scale);
         if (maxHeight > 0 && Math.Abs(MaxHeight - maxHeight) > 0.5)
         {
             MaxHeight = maxHeight;
-            UpdateLayout();
         }
+
+        UpdateLayout();
 
         var width = (int)Math.Ceiling(ActualWidth * scale);
         var height = (int)Math.Ceiling(ActualHeight * scale);

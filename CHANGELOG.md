@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- With monitors at different scaling (a 200 % laptop screen beside 100 % displays), or after reconnecting monitors,
+  the flyout could open half its width and as tall as the screen, with the Refresh and Settings buttons stretched to
+  fill it, and stay that way until the app was restarted. Moving to a monitor with another DPI made Windows rescale
+  the window, which WPF applies as a manual resize: the width was halved and the height stopped following the
+  content. The flyout now steps onto the target monitor before measuring itself, puts its width and content-driven
+  height back before every placement and after every DPI change, ignores the resize events its own placement causes
+  instead of re-placing in a loop, and stays anchored to the icon it was opened from rather than to wherever the
+  cursor is when the DPI changes.
+
 ## [0.1.3] - 2026-09-10
 
 ### Added

@@ -108,6 +108,12 @@ single-file analysers, which are errors in Release (IL3000 broke the publish onc
   SQLITE_NOTADB, or a failed check, never merely busy) it moves the file and its `-wal`/`-shm` to
   `history.corrupt-<time>.db`, starts fresh and copies every readable row. Capture runs neither write the database nor
   rebuild it (`recoverCorruption: false`). `COUNT(*)` can succeed on a damaged table because SQLite answers it from an index.
+- Mixed-DPI monitors: moving the flyout to a monitor with another DPI (or reconnecting monitors, even while it is hidden)
+  makes Windows send a rescaled rectangle that WPF applies as a manual resize, switching `SizeToContent` to `Manual` and
+  halving or doubling `Width`. On 2026-09-15 that left a 176 DIP wide, work-area-tall flyout until restart.
+  `FlyoutWindow.Place` therefore steps onto the target monitor before measuring, calls `RestoreSizeToContent` before
+  every placement and after `OnDpiChanged`, and ignores re-entrant calls. Only reproducible with monitors at different
+  scaling; the log's `Flyout placed ... WxH px` lines show it (width must be 352 times the scale).
 - Single-file publish runs the IL3000 family of analysers with warnings as errors: `Assembly.Location` is empty in a single-file app and fails the publish. Use `Environment.ProcessPath` or `AppContext.BaseDirectory`.
 - `Environment.GetFolderPath` ignores the `LOCALAPPDATA`, `APPDATA` and `USERPROFILE` variables (it asks the shell). `AppPaths.FromEnvironment` reads the variables first when they hold rooted paths, so a run can be pointed at a fresh profile for testing; that is how the not-signed-in, expired-token and offline states were verified against the published exe.
 
