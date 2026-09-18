@@ -20,12 +20,22 @@ public sealed class OAuthUsageProvider : IUsageProvider
     public const string BetaHeaderValue = "oauth-2025-04-20";
     public const string UserAgentProduct = "claude-code";
 
+    /// <summary>Shown when the token is past its expiry and the nudge did not get Claude Code to refresh it.</summary>
+    public const string ExpiredMessage = "Claude Code sign-in has expired. Run the Claude Code CLI once to refresh it.";
+
+    /// <summary>Shown when the token is past its expiry and there is no Claude Code CLI to ask.</summary>
+    public const string ExpiredWithoutCliMessage = "Claude Code sign-in has expired and the Claude Code CLI was not found. Install it, or run it once, to refresh the sign-in.";
+
+    /// <summary>Shown on 401 or 403 from the endpoint.</summary>
+    public const string RejectedMessage = "The usage endpoint rejected the sign-in. Sign in again with the Claude Code CLI.";
+
     private readonly HttpClient _http;
     private readonly ICredentialSource _credentials;
     private readonly IClaudeCodeVersionDetector _versions;
     private readonly TimeProvider _clock;
     private readonly ILogger<OAuthUsageProvider> _logger;
     private readonly Uri _endpoint;
+    private readonly ICredentialRefreshNudge? _nudge;
     private bool _shapeLogged;
 
     public OAuthUsageProvider(
@@ -34,7 +44,8 @@ public sealed class OAuthUsageProvider : IUsageProvider
         IClaudeCodeVersionDetector versions,
         TimeProvider clock,
         ILogger<OAuthUsageProvider> logger,
-        Uri? endpoint = null)
+        Uri? endpoint = null,
+        ICredentialRefreshNudge? nudge = null)
     {
         _http = http;
         _credentials = credentials;
@@ -42,6 +53,7 @@ public sealed class OAuthUsageProvider : IUsageProvider
         _clock = clock;
         _logger = logger;
         _endpoint = endpoint ?? DefaultEndpoint;
+        _nudge = nudge;
     }
 
     public string Name => "OAuth usage endpoint";
@@ -61,7 +73,24 @@ public sealed class OAuthUsageProvider : IUsageProvider
         var now = _clock.GetUtcNow();
         if (credentials.IsExpired(now))
         {
-            return UsageFetchResult.Failed(UsageFetchStatus.TokenExpired, "Claude Code sign-in has expired. Open Claude Code to refresh it.");
+            // Only the Claude Code CLI ever rewrites the credentials file (Claude Desktop hands its own Claude Code a
+            // host token and never touches it), so ask the CLI to refresh and read the file back before giving up.
+            var outcome = _nudge is null
+                ? CredentialRefreshOutcome.NotRefreshed
+                : await _nudge.TryRefreshAsync(cancellationToken).ConfigureAwait(false);
+            if (outcome == CredentialRefreshOutcome.Refreshed)
+            {
+                lookup = await _credentials.ReadAsync(cancellationToken).ConfigureAwait(false);
+                credentials = lookup.Status == CredentialStatus.Found ? lookup.Credentials : null;
+                now = _clock.GetUtcNow();
+            }
+
+            if (credentials is null || credentials.IsExpired(now))
+            {
+                return UsageFetchResult.Failed(
+                    UsageFetchStatus.TokenExpired,
+                    outcome == CredentialRefreshOutcome.CliNotFound ? ExpiredWithoutCliMessage : ExpiredMessage);
+            }
         }
 
         var version = await _versions.GetVersionAsync(cancellationToken).ConfigureAwait(false);
@@ -100,7 +129,7 @@ public sealed class OAuthUsageProvider : IUsageProvider
                 case HttpStatusCode.Unauthorized:
                 case HttpStatusCode.Forbidden:
                     _logger.LogWarning("Usage endpoint rejected the token (HTTP {Status})", status);
-                    return UsageFetchResult.Failed(UsageFetchStatus.Unauthenticated, "The usage endpoint rejected the sign-in. Open Claude Code to sign in again.");
+                    return UsageFetchResult.Failed(UsageFetchStatus.Unauthenticated, RejectedMessage);
             }
 
             if (!response.IsSuccessStatusCode)

@@ -55,7 +55,7 @@ public class CredentialFileSourceTests
         var lookup = await ReadAsync("does-not-exist.json");
 
         lookup.Status.ShouldBe(CredentialStatus.NotFound);
-        lookup.Detail.ShouldNotBeNull().ShouldContain("Sign in with Claude Code");
+        lookup.Detail.ShouldNotBeNull().ShouldContain("Claude Code CLI");
     }
 
     [Fact]

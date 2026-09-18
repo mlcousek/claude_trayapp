@@ -565,7 +565,7 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
     private static string? BannerFor(PollStatus status) => status.State switch
     {
         PollState.RateLimited => status.Message ?? "Rate limited by the usage endpoint. Showing the last known values.",
-        PollState.Unauthenticated => status.Message ?? "Not signed in. Open Claude Code to sign in again.",
+        PollState.Unauthenticated => status.Message ?? "Not signed in. Run the Claude Code CLI to sign in again.",
         PollState.Stale => status.Message ?? "The usage endpoint is unavailable. Showing the last known values.",
         PollState.Idle when status.Snapshot?.Source == UsageSource.Cache => "Showing cached data until the first refresh completes.",
         _ => null,

@@ -129,7 +129,7 @@ public sealed class PollingStateMachine
                     State = PollState.Unauthenticated,
                     LastAttempt = now,
                     NextAttempt = now + interval,
-                    Message = result.Message ?? "Not signed in to Claude Code.",
+                    Message = result.Message ?? "Not signed in. Run the Claude Code CLI to sign in.",
                     ConsecutiveFailures = 0,
                 }, interval);
 

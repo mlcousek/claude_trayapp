@@ -169,7 +169,7 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
     private static string Suffix(PollState state) => state switch
     {
         PollState.RateLimited => " · rate limited",
-        PollState.Unauthenticated => " · sign in with Claude Code",
+        PollState.Unauthenticated => " · run the Claude Code CLI",
         PollState.Stale => " · stale",
         PollState.Idle => " · cached",
         _ => string.Empty,

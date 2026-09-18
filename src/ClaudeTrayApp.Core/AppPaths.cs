@@ -25,6 +25,8 @@ public sealed class AppPaths
             ? Path.Combine(userProfile, ".claude")
             : claudeConfigDirOverride;
         ClaudeConfigFile = Path.Combine(string.IsNullOrWhiteSpace(claudeConfigDirOverride) ? userProfile : claudeConfigDirOverride, ".claude.json");
+        ClaudeConfigDirOverride = string.IsNullOrWhiteSpace(claudeConfigDirOverride) ? null : claudeConfigDirOverride;
+        ClaudeDesktopCliDirectory = Path.Combine(roamingAppData, "Claude", "claude-code");
     }
 
     /// <summary>
@@ -68,6 +70,12 @@ public sealed class AppPaths
 
     /// <summary>Claude Code's main config file (<c>~/.claude.json</c>), which holds the account block. Read-only.</summary>
     public string ClaudeConfigFile { get; }
+
+    /// <summary>The <c>CLAUDE_CONFIG_DIR</c> override in force, or null when Claude Code's default home applies.</summary>
+    public string? ClaudeConfigDirOverride { get; }
+
+    /// <summary>%APPDATA%\Claude\claude-code: the Claude Code builds Claude Desktop bundles, one folder per version.</summary>
+    public string ClaudeDesktopCliDirectory { get; }
 
     public string ClaudeCredentialsFile => Path.Combine(ClaudeHome, ".credentials.json");
 

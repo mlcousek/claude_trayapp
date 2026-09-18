@@ -26,6 +26,17 @@ public class AppPathsTests
     }
 
     [Fact]
+    public void Exposes_the_override_and_the_desktop_cli_folder_for_the_refresh_nudge()
+    {
+        var plain = new AppPaths(Local, Roaming, Home);
+        var overridden = new AppPaths(Local, Roaming, Home, Path.Combine("elsewhere", "claude"));
+
+        plain.ClaudeConfigDirOverride.ShouldBeNull();
+        overridden.ClaudeConfigDirOverride.ShouldBe(Path.Combine("elsewhere", "claude"));
+        plain.ClaudeDesktopCliDirectory.ShouldBe(Path.Combine(Roaming, "Claude", "claude-code"));
+    }
+
+    [Fact]
     public void Honours_the_claude_config_dir_override()
     {
         var custom = Path.Combine("elsewhere", "claude-home");

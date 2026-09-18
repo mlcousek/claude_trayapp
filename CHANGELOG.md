@@ -10,6 +10,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Using only the Claude Desktop app left the percentages frozen: the access token in Claude Code's credentials file
+  lives about eight hours and only the Claude Code CLI renews it, while the Desktop app signs in on its own and the
+  Claude Code it hosts gets its token from the Desktop app, so the file went stale and every poll and manual refresh
+  reported an expired sign-in until the CLI happened to be started. The app now starts the CLI once in the background
+  when the token has expired (print mode with its input closed, so it renews the sign-in and exits without sending a
+  prompt, starting an MCP server or writing a session file), reads the file again and carries on. The attempt is
+  throttled to one per minute, killed after ten seconds, and never touches the file or an OAuth endpoint itself. It
+  finds the CLI on PATH or, failing that, the build bundled with Claude Desktop, and says so when neither exists.
+- The expired and signed-out messages now say to run the Claude Code CLI instead of "open Claude Code", which
+  opening the Desktop app does not satisfy.
+
 - With monitors at different scaling (a 200 % laptop screen beside 100 % displays), or after reconnecting monitors,
   the flyout could open half its width and as tall as the screen, with the Refresh and Settings buttons stretched to
   fill it, and stay that way until the app was restarted. Moving to a monitor with another DPI made Windows rescale

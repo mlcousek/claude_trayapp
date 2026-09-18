@@ -119,8 +119,10 @@ as described under [Install](#install).
 
 - The app looks for `%USERPROFILE%\.claude\.credentials.json`, or `%CLAUDE_CONFIG_DIR%\.credentials.json` if that
   variable is set, and reads only the Claude OAuth section of it.
-- If nothing is found, the icon shows a question mark and the flyout explains how to sign in with Claude Code.
-- If the token has expired, the flyout says "open Claude Code to sign in again". The app never refreshes tokens itself.
+- If nothing is found, the icon shows a question mark and the flyout explains how to sign in with the Claude Code CLI.
+- If the token has expired (it lives about eight hours and only the Claude Code CLI renews it, not the Claude Desktop
+  app), the app starts the CLI once in the background so it renews its own sign-in, then reads the file again. The
+  app never refreshes tokens itself. If that does not help, the flyout says "run the Claude Code CLI once".
 - The first poll happens immediately, then every five minutes. The last result is cached so the flyout opens instantly
   on the next launch.
 
@@ -187,8 +189,9 @@ The full probed schemas and the rules derived from them are in [docs/data-source
 
 | Symptom | Likely cause | What to do |
 |---|---|---|
-| "Not signed in" | No credential file found | Run `claude` once and sign in. |
-| "Open Claude Code to sign in again" | Access token expired (about eight hours) | Run any Claude Code command; it refreshes the token. |
+| "Not signed in" | No credential file found | Run `claude` once and sign in. Signing in to the Claude Desktop app does not create the file. |
+| "Run the Claude Code CLI once to refresh it" | Access token expired (about eight hours) and the app could not get the CLI to renew it | Run `claude` once. Only the CLI renews the token; the Claude Desktop app never does. The log shows why the automatic attempt did not help. |
+| "The Claude Code CLI was not found" | Token expired and no `claude` on PATH or bundled with Claude Desktop | Install the Claude Code CLI, or run it once from wherever it is installed. |
 | "Rate limited" or a stale marker | The endpoint returned 429 | Wait. The app backs off automatically; do not lower the poll interval. |
 | Percentages unavailable, tokens still shown | Endpoint or network down | Local analytics keep working; percentages return when the endpoint does. |
 | "Cost unknown" | Model id missing from `pricing.json` | Update the pricing file or point Settings at your own. |

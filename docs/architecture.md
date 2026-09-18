@@ -41,7 +41,7 @@ is worse than none.
 ```mermaid
 flowchart LR
     subgraph sources [Sources, read-only]
-        CRED["Credential discovery<br/>~/.claude/.credentials.json<br/>(CLAUDE_CONFIG_DIR honoured)"]
+        CRED["Credential discovery<br/>~/.claude/.credentials.json<br/>(CLAUDE_CONFIG_DIR honoured)<br/>expired: nudge the Claude Code CLI to refresh"]
         JSONL["Session logs<br/>~/.claude/projects/**/*.jsonl"]
         PRICE["pricing.json<br/>(next to binary, overridable)"]
     end
@@ -91,11 +91,13 @@ stateDiagram-v2
     Ok --> Idle : write cache.json + history, reset backoff, clear stale flag
     Stale --> Idle : keep last snapshot, show "stale", backoff = min(2^n x interval, 30 min)
     RateLimited --> Idle : keep last snapshot, show "rate limited", backoff = min(2^n x interval, 30 min)
-    Unauthenticated --> Idle : show "open Claude Code to sign in", re-read credentials next tick
+    Unauthenticated --> Idle : show "run the Claude Code CLI", re-read credentials next tick
 
     note right of Unauthenticated
-        The app never refreshes tokens.
-        Claude Code does that when it runs.
+        The app never refreshes tokens itself.
+        On an expired token it starts the Claude Code
+        CLI headless (print mode, input closed) so the
+        CLI refreshes its own file, then reads it back.
     end note
 ```
 

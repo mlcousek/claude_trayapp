@@ -219,7 +219,18 @@ public partial class App : Application
         services.AddSingleton(sp => sp.GetRequiredService<SettingsStore>().Current.ToPollingOptions());
         services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromSeconds(30) });
         services.AddSingleton<ICredentialSource>(_ => new CredentialFileSource(paths.ClaudeCredentialsFile));
+        services.AddSingleton<IClaudeCliLocator>(sp => ClaudeCliLocator.FromEnvironment(paths, sp.GetRequiredService<ILogger<ClaudeCliLocator>>()));
         services.AddSingleton<IClaudeCodeVersionDetector, ClaudeCodeVersionDetector>();
+
+        // An expired token is refreshed by asking the Claude Code CLI to start headless; only the CLI rewrites the file.
+        services.AddSingleton<IProcessRunner>(sp => new ProcessRunner(sp.GetRequiredService<TimeProvider>()));
+        services.AddSingleton<ICredentialRefreshNudge>(sp => new ClaudeCliRefreshNudge(
+            sp.GetRequiredService<IClaudeCliLocator>(),
+            sp.GetRequiredService<IProcessRunner>(),
+            sp.GetRequiredService<ICredentialSource>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<ClaudeCliRefreshNudge>>(),
+            new ClaudeCliRefreshNudgeOptions { WorkingDirectory = paths.LocalRoot, ClaudeConfigDirOverride = paths.ClaudeConfigDirOverride }));
         services.AddSingleton<OAuthUsageProvider>();
         services.AddSingleton<IUsageProvider>(sp => sp.GetRequiredService<OAuthUsageProvider>());
         services.AddSingleton<ISnapshotCache>(sp => new SnapshotCache(paths.CacheFile, sp.GetRequiredService<ILogger<SnapshotCache>>()));
