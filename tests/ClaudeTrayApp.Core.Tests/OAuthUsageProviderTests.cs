@@ -19,7 +19,8 @@ public class OAuthUsageProviderTests
 
     private static (OAuthUsageProvider Provider, StubHttpMessageHandler Handler, ListLogger<OAuthUsageProvider> Log) Create(
         Func<HttpRequestMessage, HttpResponseMessage> respond,
-        ICredentialSource? credentials = null)
+        ICredentialSource? credentials = null,
+        ICredentialRefreshNudge? nudge = null)
     {
         var handler = new StubHttpMessageHandler(respond);
         var log = new ListLogger<OAuthUsageProvider>();
@@ -28,7 +29,8 @@ public class OAuthUsageProviderTests
             credentials ?? FakeCredentialSource.Valid(),
             new FakeVersionDetector("1.2.3"),
             new FakeTimeProvider(Now),
-            log);
+            log,
+            nudge: nudge);
         return (provider, handler, log);
     }
 
@@ -149,8 +151,76 @@ public class OAuthUsageProviderTests
         var result = await provider.FetchAsync(TestContext.Current.CancellationToken);
 
         result.Status.ShouldBe(UsageFetchStatus.TokenExpired);
-        result.Message.ShouldNotBeNull().ShouldContain("Open Claude Code");
+        result.Message.ShouldBe(OAuthUsageProvider.ExpiredMessage);
         handler.Calls.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task An_expired_token_the_cli_refreshed_is_used_in_the_same_fetch()
+    {
+        var expired = ScriptedCredentialSource.ExpiredAt(Now - TimeSpan.FromHours(1));
+        var fresh = ScriptedCredentialSource.ExpiredAt(Now + TimeSpan.FromHours(8));
+        var nudge = new FakeRefreshNudge(CredentialRefreshOutcome.Refreshed);
+        var (provider, handler, _) = Create(_ => Json(HttpStatusCode.OK, Typical()), new ScriptedCredentialSource(expired, fresh), nudge);
+
+        var result = await provider.FetchAsync(TestContext.Current.CancellationToken);
+
+        result.Status.ShouldBe(UsageFetchStatus.Success);
+        nudge.Calls.ShouldBe(1);
+        handler.Calls.ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData(CredentialRefreshOutcome.NotRefreshed)]
+    [InlineData(CredentialRefreshOutcome.Throttled)]
+    [InlineData(CredentialRefreshOutcome.Failed)]
+    public async Task An_expired_token_the_cli_did_not_refresh_sends_no_request(CredentialRefreshOutcome outcome)
+    {
+        var nudge = new FakeRefreshNudge(outcome);
+        var (provider, handler, _) = Create(_ => Json(HttpStatusCode.OK, Typical()), FakeCredentialSource.Expired(), nudge);
+
+        var result = await provider.FetchAsync(TestContext.Current.CancellationToken);
+
+        result.Status.ShouldBe(UsageFetchStatus.TokenExpired);
+        result.Message.ShouldBe(OAuthUsageProvider.ExpiredMessage);
+        nudge.Calls.ShouldBe(1);
+        handler.Calls.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task An_expired_token_without_a_cli_says_so()
+    {
+        var (provider, handler, _) = Create(_ => Json(HttpStatusCode.OK, Typical()), FakeCredentialSource.Expired(), new FakeRefreshNudge(CredentialRefreshOutcome.CliNotFound));
+
+        var result = await provider.FetchAsync(TestContext.Current.CancellationToken);
+
+        result.Status.ShouldBe(UsageFetchStatus.TokenExpired);
+        result.Message.ShouldBe(OAuthUsageProvider.ExpiredWithoutCliMessage);
+        handler.Calls.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_refresh_that_still_leaves_the_token_expired_sends_no_request()
+    {
+        // The nudge said refreshed but the re-read disagrees: trust the file, never the report.
+        var nudge = new FakeRefreshNudge(CredentialRefreshOutcome.Refreshed);
+        var (provider, handler, _) = Create(_ => Json(HttpStatusCode.OK, Typical()), FakeCredentialSource.Expired(), nudge);
+
+        var result = await provider.FetchAsync(TestContext.Current.CancellationToken);
+
+        result.Status.ShouldBe(UsageFetchStatus.TokenExpired);
+        handler.Calls.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_valid_token_never_triggers_the_nudge()
+    {
+        var nudge = new FakeRefreshNudge(CredentialRefreshOutcome.Refreshed);
+        var (provider, _, _) = Create(_ => Json(HttpStatusCode.OK, Typical()), nudge: nudge);
+
+        await provider.FetchAsync(TestContext.Current.CancellationToken);
+
+        nudge.Calls.ShouldBe(0);
     }
 
     [Fact]

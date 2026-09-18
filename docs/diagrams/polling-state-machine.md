@@ -14,10 +14,12 @@ stateDiagram-v2
     Ok --> Idle : write cache.json + history, reset backoff, clear stale flag
     Stale --> Idle : keep last snapshot, show "stale", backoff = min(2^n x interval, 30 min)
     RateLimited --> Idle : keep last snapshot, show "rate limited", backoff = min(2^n x interval, 30 min)
-    Unauthenticated --> Idle : show "open Claude Code to sign in", re-read credentials next tick
+    Unauthenticated --> Idle : show "run the Claude Code CLI", re-read credentials next tick
 
     note right of Unauthenticated
-        The app never refreshes tokens.
-        Claude Code does that when it runs.
+        The app never refreshes tokens itself.
+        On an expired token it starts the Claude Code
+        CLI headless (print mode, input closed) so the
+        CLI refreshes its own file, then reads it back.
     end note
 ```

@@ -62,3 +62,5 @@ $RECYCLE.BIN/
 # Serena keeps its own .serena/.gitignore (cache and local overrides are excluded there).
 graphify-out/
 *.local.md
+.claude/
+openspec/

@@ -54,7 +54,7 @@ public class TrayIconViewModelTests
 
     [Theory]
     [InlineData(PollState.RateLimited, "rate limited")]
-    [InlineData(PollState.Unauthenticated, "sign in with Claude Code")]
+    [InlineData(PollState.Unauthenticated, "run the Claude Code CLI")]
     [InlineData(PollState.Stale, "stale")]
     [InlineData(PollState.Idle, "cached")]
     public void Tooltip_names_the_degraded_state(PollState state, string expected) =>

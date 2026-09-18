@@ -5,7 +5,7 @@ Credential discovery feeds the OAuth provider, whose poller writes every fresh s
 ```mermaid
 flowchart LR
     subgraph sources [Sources, read-only]
-        CRED["Credential discovery<br/>~/.claude/.credentials.json<br/>(CLAUDE_CONFIG_DIR honoured)"]
+        CRED["Credential discovery<br/>~/.claude/.credentials.json<br/>(CLAUDE_CONFIG_DIR honoured)<br/>expired: nudge the Claude Code CLI to refresh"]
         JSONL["Session logs<br/>~/.claude/projects/**/*.jsonl"]
         PRICE["pricing.json<br/>(next to binary, overridable)"]
     end

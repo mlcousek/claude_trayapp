@@ -25,7 +25,7 @@ public sealed class CredentialFileSource : ICredentialSource
     {
         if (!File.Exists(_filePath))
         {
-            return CredentialLookup.NotFound($"No credentials file at {_filePath}. Sign in with Claude Code first.");
+            return CredentialLookup.NotFound($"No credentials file at {_filePath}. Run the Claude Code CLI and sign in first.");
         }
 
         byte[] bytes;
@@ -64,7 +64,7 @@ public sealed class CredentialFileSource : ICredentialSource
                 || token.ValueKind != JsonValueKind.String
                 || string.IsNullOrWhiteSpace(token.GetString()))
             {
-                return CredentialLookup.Invalid("Credentials file has no Claude access token. Sign in with Claude Code.");
+                return CredentialLookup.Invalid("Credentials file has no Claude access token. Sign in with the Claude Code CLI.");
             }
 
             return CredentialLookup.Found(new ClaudeCredentials(

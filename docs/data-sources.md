@@ -26,10 +26,45 @@ Everything the app shows comes from two sources. Both are read-only. Facts below
 }
 ```
 
-- `expiresAt` is Unix epoch milliseconds. Observed access-token lifetime: eight hours. Claude Code refreshes the token when it runs; this app never does (that would mean writing to `~/.claude`).
-- When `expiresAt` is in the past or the endpoint answers 401, show "sign in again in Claude Code" and keep serving the last snapshot.
+- `expiresAt` is Unix epoch milliseconds. Observed access-token lifetime: eight hours. Only the Claude Code **CLI** refreshes the token, and only when it starts: Claude Desktop authenticates its chat with its own web session, and the Claude Code it hosts in the Code tab runs with `CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH=1` and a host-supplied token, so neither ever rewrites this file (verified 2026-09-18: the token expired at 21:09 the evening before and stayed expired through a Desktop Code-tab session at 11:14; a CLI started from a terminal at 11:39:37 rewrote the file at 11:39:40). This app never refreshes the token itself (that would mean writing to `~/.claude` and calling the OAuth token endpoint); it asks the CLI to, see "Token refresh nudge" below.
+- When `expiresAt` is in the past and the nudge did not help, or the endpoint answers 401, show "run the Claude Code CLI" and keep serving the last snapshot.
 - `subscriptionType` and `rateLimitTier` provide a plan-tier fallback if the endpoint omits one.
 - The file is rewritten by Claude Code; re-read it before every poll and tolerate a locked or half-written file (retry next tick).
+
+### Token refresh nudge
+
+When the file's `expiresAt` is in the past, `ClaudeCliRefreshNudge` starts the Claude Code CLI headless and reads the
+file back. The command, probed on 2026-09-18 against Claude Code 2.1.276 with a scratchpad copy of the Claude home
+(`CLAUDE_CONFIG_DIR`), an expired `expiresAt`, fake tokens and Claude Code's own `--debug-file` log as evidence:
+
+```text
+claude -p --input-format stream-json --output-format stream-json --verbose
+       --strict-mcp-config --mcp-config <%LOCALAPPDATA%\ClaudeTrayApp\empty-mcp.json> --no-session-persistence
+```
+
+- Standard input is closed at once, so print mode reads end of file and exits without a prompt; nothing is sent to
+  the model and no usage is consumed. Claude Code's "background startup prefetches" run first and refresh an expired
+  OAuth token (`OAuth refresh failed (expected): Request failed with status code 400` appears about 300 ms after
+  `Starting background startup prefetches` when the refresh token is fake). The process exits 0 after about 2.5 s,
+  after the file has been rewritten. `--bare` skips those prefetches and must never be added.
+- `auth status --json`, `doctor`, `plugin list` and `--version` never touch the token; `mcp list` rewrites the file
+  without refreshing, starts every configured MCP server and took 31 s. None of them is usable.
+- The empty MCP config (`{"mcpServers":{}}`) with `--strict-mcp-config` keeps the user's MCP servers from being started;
+  `--no-session-persistence` keeps a session file from being written. Plugin sync and user-level hooks still run,
+  exactly as on a normal CLI start. `--setting-sources ""` would skip user settings but arrives as two literal quote
+  characters through `cmd.exe` (needed for the npm `.cmd` shim) and is rejected, so it is not used; the working
+  directory is this app's own data folder, so no project settings apply.
+- With a refresh token the server rejects, Claude Code exits 0, opens no browser, prompts for nothing and rewrites the
+  file with the credentials marked invalid (`expiresAt` 0, token cleared). The app then reports "run the Claude Code
+  CLI", which is what the user's next CLI start would show anyway.
+- The CLI is located on PATH first (`claude.exe`, then the npm `claude.cmd` shim, which runs through `cmd.exe /d /c`),
+  then as the newest `%APPDATA%\Claude\claude-code\<version>\claude.exe` bundled with Claude Desktop, which works
+  standalone (about 2 s). Inherited `CLAUDECODE`, `CLAUDE_CODE_*`, `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN`
+  variables are removed from the child's environment so a host token or an API key cannot pre-empt the OAuth refresh;
+  `CLAUDE_CONFIG_DIR` is forwarded when the app runs with it.
+- One nudge per fetch, never two within 60 s, 10 s timeout with the process tree killed; "CLI not found" is remembered
+  for the rest of the process. The log records the source, outcome, exit code, elapsed time and the expiry before and
+  after; the CLI's output is drained and discarded, never kept or logged.
 
 ### Request
 

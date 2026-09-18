@@ -11,7 +11,8 @@ public interface IClaudeCodeVersionDetector
 }
 
 /// <summary>
-/// Runs <c>claude --version</c> once and caches the result for the User-Agent header.
+/// Runs <c>claude --version</c> once and caches the result for the User-Agent header. The CLI comes from
+/// <see cref="IClaudeCliLocator"/>, so a machine with only Claude Desktop's bundled build reports that build's version.
 /// Falls back to a known-good constant when Claude Code is not installed or does not answer in time.
 /// </summary>
 public sealed partial class ClaudeCodeVersionDetector : IClaudeCodeVersionDetector, IDisposable
@@ -20,12 +21,15 @@ public sealed partial class ClaudeCodeVersionDetector : IClaudeCodeVersionDetect
     public const string FallbackVersion = "2.1.224";
 
     private static readonly TimeSpan DetectionTimeout = TimeSpan.FromSeconds(5);
+    private readonly IClaudeCliLocator _locator;
     private readonly ILogger<ClaudeCodeVersionDetector> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private string? _cached;
 
-    public ClaudeCodeVersionDetector(ILogger<ClaudeCodeVersionDetector> logger)
+    public ClaudeCodeVersionDetector(IClaudeCliLocator locator, ILogger<ClaudeCodeVersionDetector> logger)
     {
+        ArgumentNullException.ThrowIfNull(locator);
+        _locator = locator;
         _logger = logger;
     }
 
@@ -55,15 +59,25 @@ public sealed partial class ClaudeCodeVersionDetector : IClaudeCodeVersionDetect
 
     private async Task<string> DetectAsync(CancellationToken cancellationToken)
     {
+        var location = _locator.Locate();
+        if (location is null)
+        {
+            return Fallback("Claude Code CLI not found");
+        }
+
         try
         {
-            // On Windows "claude" is an npm shim (.cmd), which needs the shell to resolve.
-            var startInfo = OperatingSystem.IsWindows()
-                ? new ProcessStartInfo("cmd.exe", "/d /c claude --version")
-                : new ProcessStartInfo("claude", "--version");
-            startInfo.RedirectStandardOutput = true;
-            startInfo.UseShellExecute = false;
-            startInfo.CreateNoWindow = true;
+            var (fileName, arguments) = location.Command(["--version"]);
+            var startInfo = new ProcessStartInfo(fileName)
+            {
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            foreach (var argument in arguments)
+            {
+                startInfo.ArgumentList.Add(argument);
+            }
 
             using var process = Process.Start(startInfo);
             if (process is null)
