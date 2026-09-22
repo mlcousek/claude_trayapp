@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [0.1.4] - 2026-09-15
+## [0.1.5] - 2026-09-22
 
 ### Fixed
 
@@ -20,6 +20,10 @@ All notable changes to this project are documented here. The format follows
   finds the CLI on PATH or, failing that, the build bundled with Claude Desktop, and says so when neither exists.
 - The expired and signed-out messages now say to run the Claude Code CLI instead of "open Claude Code", which
   opening the Desktop app does not satisfy.
+
+## [0.1.4] - 2026-09-15
+
+### Fixed
 
 - With monitors at different scaling (a 200 % laptop screen beside 100 % displays), or after reconnecting monitors,
   the flyout could open half its width and as tall as the screen, with the Refresh and Settings buttons stretched to
@@ -154,7 +158,8 @@ First release. Everything below is new in this version.
 - Single-file publish failed with IL3000: the Start with Windows wiring fell back to `Assembly.Location`, which is empty in a single-file app. It now falls back to the exe next to `AppContext.BaseDirectory`.
 - Core awaits use `ConfigureAwait(false)` and the host starts and stops off the UI thread, so quitting no longer waits five seconds for the polling loop.
 
-[Unreleased]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.1...v0.1.2
