@@ -124,9 +124,10 @@ public sealed class ProcessRunner : IProcessRunner
                 // Discarded on purpose: the child's output may carry anything, and nothing here keeps or logs it.
             }
         }
-        catch (Exception ex) when (ex is OperationCanceledException or IOException)
+        catch (Exception ex) when (ex is OperationCanceledException or IOException or ObjectDisposedException)
         {
-            // The pipe closed or the wait timed out; either way there is nothing left to read.
+            // The pipe closed, the wait timed out, or the process was disposed after a timeout while a read was
+            // still pending; either way there is nothing left to read.
         }
     }
 
