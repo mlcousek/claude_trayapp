@@ -14,7 +14,7 @@ namespace ClaudeTrayApp.Tray;
 
 /// <summary>
 /// Owns the taskbar icon: draws it from the view model, redraws on DPI or theme changes, wires the context menu.
-/// Left-click is surfaced as an event for the flyout (milestone 4).
+/// Left-click is surfaced as an event, which toggles the flyout.
 /// </summary>
 public sealed class TrayIconController : IDisposable
 {
@@ -50,7 +50,7 @@ public sealed class TrayIconController : IDisposable
         _logger.LogInformation("Tray icon created at {Size} px", _lastSize);
     }
 
-    /// <summary>Left-click on the icon. The flyout subscribes here from milestone 4.</summary>
+    /// <summary>Left-click on the icon. The flyout subscribes here.</summary>
     public event EventHandler? LeftClick;
 
     /// <summary>Icon pixel size for the current system DPI: 16 at 100 %, 20 at 125 %, 24 at 150 %, 32 at 200 %.</summary>

@@ -81,9 +81,6 @@ public sealed record AppSettings
     [JsonIgnore]
     public TimeSpan PollInterval => TimeSpan.FromSeconds(PollIntervalSeconds);
 
-    [JsonIgnore]
-    public bool UsesAutoTrayWindow => string.IsNullOrWhiteSpace(TrayWindow) || string.Equals(TrayWindow, AutoTrayWindow, StringComparison.OrdinalIgnoreCase);
-
     /// <summary>Clamps every value into its allowed range and tidies the threshold list; idempotent.</summary>
     public AppSettings Normalized()
     {

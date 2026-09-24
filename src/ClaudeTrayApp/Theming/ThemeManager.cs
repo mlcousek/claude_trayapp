@@ -46,7 +46,7 @@ public sealed class ThemeManager : IDisposable
     /// <summary>Theme of the taskbar, which decides the tray icon's text colour.</summary>
     public AppTheme TaskbarTheme { get; private set; } = AppTheme.Dark;
 
-    /// <summary>Forces a theme regardless of the Windows setting (settings window, milestone 7).</summary>
+    /// <summary>Forces a theme regardless of the Windows setting (the Theme setting, applied by SettingsCoordinator).</summary>
     public AppTheme? Override { get; set; }
 
     /// <summary>Reads the Windows setting and merges the matching palette. Safe to call repeatedly.</summary>

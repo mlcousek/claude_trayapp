@@ -10,8 +10,6 @@ namespace ClaudeTrayApp.Core.Aggregation;
 /// </summary>
 public sealed record AggregatedUsage(PollStatus Poll, LocalAnalytics? Local, DateTimeOffset Now)
 {
-    public const string AnalyticsSource = "local session logs";
-
     public bool PercentagesAvailable => Poll.HasPercentages;
 
     public bool AnalyticsAvailable => Local is not null;
