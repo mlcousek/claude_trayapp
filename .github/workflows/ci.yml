@@ -44,6 +44,11 @@ jobs:
       - name: Format check
         run: dotnet format --verify-no-changes --no-restore
 
+      # The single-file analysers (IL3000 and friends) only run on a self-contained publish and are errors in Release;
+      # without this step they would first fail at tag time.
+      - name: Publish check (win-x64, single file)
+        run: dotnet publish src/ClaudeTrayApp -c Release -r win-x64 -o artifacts/publish/win-x64
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

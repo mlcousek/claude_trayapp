@@ -31,8 +31,9 @@ gh release view v0.1.0                                                    # both
 
 Run from the repo root: `global.json` asks for SDK 9.0.300 or a newer 9.0 feature band (`latestFeature`, no previews) because dev machines may default to a newer preview SDK.
 Publish output is a single self-contained, ReadyToRun exe (about 65 MB on x64, 61 MB on Arm64) plus `pricing.json`;
-`artifacts/` is git-ignored. Publish locally before tagging: CI builds framework-dependent and never runs the
-single-file analysers, which are errors in Release (IL3000 broke the publish once without CI noticing).
+`artifacts/` is git-ignored. CI runs a win-x64 single-file publish so the single-file analysers, which are errors in
+Release, fail on `main` rather than at tag time (IL3000 once broke a release that CI had passed); win-arm64 is still
+published only by the release workflow.
 
 ## Layout
 
@@ -42,7 +43,7 @@ single-file analysers, which are errors in Release (IL3000 broke the publish onc
 - `tests/ClaudeTrayApp.Core.Tests/` xunit.v3 + Shouldly + NSubstitute. Fixture files with fake tokens and synthetic sessions only.
 - `docs/` `architecture.md`, `data-sources.md`, `packaging.md` (code signing and winget), `todo.md` (open work and deliberately deferred items), `diagrams/` (Mermaid sources), `screenshots/`.
 - `packaging/winget/<version>/` winget manifests, validated with `winget validate`; see `docs/packaging.md`. Submission to winget-pkgs is the owner's call and has not happened yet.
-- `.github/` `workflows/ci.yml` (build, test, format), `workflows/release.yml` (tag `v*`: publish both RIDs, zip, `SHA256SUMS.txt`, GitHub release), `release/` (the zip's `README.txt` and the release-notes template), Dependabot, issue templates.
+- `.github/` `workflows/ci.yml` (build, test, format, win-x64 publish check), `workflows/release.yml` (tag `v*`: publish both RIDs, zip, `SHA256SUMS.txt`, GitHub release), `release/` (the zip's `README.txt` and the release-notes template), Dependabot, issue templates.
 - `Directory.Build.props` shared MSBuild settings. `Directory.Packages.props` every package version. `global.json` SDK pin.
 
 ## Architecture

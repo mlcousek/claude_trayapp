@@ -67,6 +67,9 @@ jobs:
       - name: Test
         run: dotnet test --configuration Release --no-build
 
+      - name: Format check
+        run: dotnet format --verify-no-changes --no-restore
+
       - name: Publish win-x64
         run: dotnet publish src/ClaudeTrayApp -c Release -r win-x64 -o artifacts/publish/win-x64 -p:Version=$env:VERSION
 
