@@ -85,12 +85,12 @@ stateDiagram-v2
     Idle --> Fetching : tick (interval >= 180 s) or debounced manual refresh
     Fetching --> Ok : 200, parsed
     Fetching --> RateLimited : 429
-    Fetching --> Unauthenticated : 401, missing credentials, or token past expiresAt
+    Fetching --> Unauthenticated : 401 or 403, missing credentials, or token past expiresAt
     Fetching --> Stale : network error, timeout, 5xx, unparseable body
 
     Ok --> Idle : write cache.json + history, reset backoff, clear stale flag
-    Stale --> Idle : keep last snapshot, show "stale", backoff = min(2^n x interval, 30 min)
-    RateLimited --> Idle : keep last snapshot, show "rate limited", backoff = min(2^n x interval, 30 min)
+    Stale --> Idle : keep last snapshot, show "stale", backoff = 2^(n-1) x interval, capped at 30 min
+    RateLimited --> Idle : keep last snapshot, show "rate limited", same backoff, or Retry-After if longer (also capped at 30 min)
     Unauthenticated --> Idle : show "run the Claude Code CLI", re-read credentials next tick
 
     note right of Unauthenticated
@@ -139,14 +139,17 @@ sequenceDiagram
     participant Local as JSONL analytics
 
     U->>App: launch
-    App->>App: single-instance mutex (a second launch signals the first and exits)
-    App->>App: build host, Serilog, DI
-    App->>Settings: load settings.json (defaults written on first run), start watching
-    App->>Cache: load last snapshot
-    Cache-->>App: snapshot or none
-    App->>Tray: render icon from cache (stale flag if old)
-    App->>Poll: start
-    App->>Local: start incremental scan + watcher
+    App->>App: Serilog and crash logging
+    App->>App: single-instance event + mutex (a second launch signals the first and exits)
+    App->>App: build host, DI
+    App->>Settings: load settings.json (defaults written on first run)
+    App->>Poll: start hosted services (off the UI thread)
+    Poll->>Cache: load last snapshot (stale until the first fresh fetch)
+    App->>Local: incremental scan + watcher, history recorder, weekly update check
+    App->>Settings: settings coordinator starts watching, theme applied
+    App->>App: Start with Windows default (first run only)
+    App->>Tray: create icon from the current status
+    App->>App: warm up the flyout off-screen, load account info
 
     Poll->>API: GET /api/oauth/usage
     API-->>Poll: 200 snapshot (or 429 / 401 / error)
@@ -201,7 +204,7 @@ day. `UsageAggregator` hands the flyout one object whose two halves name their s
 
 `FlyoutWindow` is a WPF tool window (`WS_EX_TOOLWINDOW`, no taskbar button, not in Alt-Tab) created once at start
 and warmed up off-screen; opening it is a show plus placement, measured at about 100 ms. Placement is pure maths in
-`FlyoutPlacement`: the monitor under the cursor and its work area decide the taskbar edge, and the window is moved
+`FlyoutPlacement`: the monitor under the cursor when the flyout opens (kept as its anchor, and reused after a DPI change) and its work area decide the taskbar edge, and the window is moved
 with `SetWindowPos` in physical pixels, so mixed-DPI setups work with the PerMonitorV2 manifest. The backdrop is
 DWM's transient-window acrylic when available, with a solid surface fallback. Click-outside is handled by the
 window's `Deactivated` event and Esc by key handling. `FlyoutViewModel` splits the snapshot into the primary window

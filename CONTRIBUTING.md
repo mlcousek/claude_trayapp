@@ -4,7 +4,7 @@ Thanks for helping. This is a small, single-maintainer project, so the process i
 
 ## Setup
 
-1. Install the .NET 9 SDK (any 9.0.3xx band; `global.json` picks it).
+1. Install the .NET 9 SDK (9.0.300 or a newer 9.0 feature band; `global.json` picks it).
 2. Clone and build:
 
 ```bash

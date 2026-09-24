@@ -29,7 +29,7 @@ gh run watch <run id> --exit-status                                       # CI o
 gh release view v0.1.0                                                    # both zips and SHA256SUMS.txt attached
 ```
 
-Run from the repo root: `global.json` pins the 9.0.3xx SDK band because dev machines may default to a newer preview SDK.
+Run from the repo root: `global.json` asks for SDK 9.0.300 or a newer 9.0 feature band (`latestFeature`, no previews) because dev machines may default to a newer preview SDK.
 Publish output is a single self-contained, ReadyToRun exe (about 65 MB on x64, 61 MB on Arm64) plus `pricing.json`;
 `artifacts/` is git-ignored. Publish locally before tagging: CI builds framework-dependent and never runs the
 single-file analysers, which are errors in Release (IL3000 broke the publish once without CI noticing).

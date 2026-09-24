@@ -10,7 +10,7 @@ local token/cost analytics.
 > **Unofficial tool.** Claude Usage Tray is a community project. It is not affiliated with, endorsed by, or supported
 > by Anthropic. It relies on an undocumented endpoint that can change or stop working at any time.
 
-> **Status: all eight milestones complete, first release v0.1.0.** Solution scaffold, CI, docs, the data layer
+> **Status: all eight milestones complete; released since v0.1.0 (2026-09-07), latest in the [Releases](https://github.com/mlcousek/claude_trayapp/releases).** Solution scaffold, CI, docs, the data layer
 > (credential discovery, the usage endpoint provider with backoff and cache, verified live), the generated tray icon
 > with its context menu, the flyout, local analytics from the session logs with history, the charts, settings with
 > notifications, autostart and single instance, and the release pipeline. Downloads are on the
@@ -203,7 +203,7 @@ The full probed schemas and the rules derived from them are in [docs/data-source
 ```mermaid
 flowchart LR
     subgraph sources [Sources, read-only]
-        CRED["Credential discovery<br/>~/.claude/.credentials.json<br/>(CLAUDE_CONFIG_DIR honoured)"]
+        CRED["Credential discovery<br/>~/.claude/.credentials.json<br/>(CLAUDE_CONFIG_DIR honoured)<br/>expired: nudge the Claude Code CLI to refresh"]
         JSONL["Session logs<br/>~/.claude/projects/**/*.jsonl"]
         PRICE["pricing.json<br/>(next to binary, overridable)"]
     end

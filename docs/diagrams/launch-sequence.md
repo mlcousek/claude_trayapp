@@ -14,14 +14,17 @@ sequenceDiagram
     participant Local as JSONL analytics
 
     U->>App: launch
-    App->>App: single-instance mutex (a second launch signals the first and exits)
-    App->>App: build host, Serilog, DI
-    App->>Settings: load settings.json (defaults written on first run), start watching
-    App->>Cache: load last snapshot
-    Cache-->>App: snapshot or none
-    App->>Tray: render icon from cache (stale flag if old)
-    App->>Poll: start
-    App->>Local: start incremental scan + watcher
+    App->>App: Serilog and crash logging
+    App->>App: single-instance event + mutex (a second launch signals the first and exits)
+    App->>App: build host, DI
+    App->>Settings: load settings.json (defaults written on first run)
+    App->>Poll: start hosted services (off the UI thread)
+    Poll->>Cache: load last snapshot (stale until the first fresh fetch)
+    App->>Local: incremental scan + watcher, history recorder, weekly update check
+    App->>Settings: settings coordinator starts watching, theme applied
+    App->>App: Start with Windows default (first run only)
+    App->>Tray: create icon from the current status
+    App->>App: warm up the flyout off-screen, load account info
 
     Poll->>API: GET /api/oauth/usage
     API-->>Poll: 200 snapshot (or 429 / 401 / error)

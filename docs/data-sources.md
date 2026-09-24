@@ -27,7 +27,7 @@ Everything the app shows comes from two sources. Both are read-only. Facts below
 ```
 
 - `expiresAt` is Unix epoch milliseconds. Observed access-token lifetime: eight hours. Only the Claude Code **CLI** refreshes the token, and only when it starts: Claude Desktop authenticates its chat with its own web session, and the Claude Code it hosts in the Code tab runs with `CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH=1` and a host-supplied token, so neither ever rewrites this file (verified 2026-09-18: the token expired at 21:09 the evening before and stayed expired through a Desktop Code-tab session at 11:14; a CLI started from a terminal at 11:39:37 rewrote the file at 11:39:40). This app never refreshes the token itself (that would mean writing to `~/.claude` and calling the OAuth token endpoint); it asks the CLI to, see "Token refresh nudge" below.
-- When `expiresAt` is in the past and the nudge did not help, or the endpoint answers 401, show "run the Claude Code CLI" and keep serving the last snapshot.
+- When `expiresAt` is in the past and the nudge did not help, or the endpoint answers 401 or 403, show "run the Claude Code CLI" and keep serving the last snapshot.
 - `subscriptionType` and `rateLimitTier` provide a plan-tier fallback if the endpoint omits one.
 - The file is rewritten by Claude Code; re-read it before every poll and tolerate a locked or half-written file (retry next tick).
 
@@ -57,7 +57,7 @@ claude -p --input-format stream-json --output-format stream-json --verbose
 - With a refresh token the server rejects, Claude Code exits 0, opens no browser, prompts for nothing and rewrites the
   file with the credentials marked invalid (`expiresAt` 0, token cleared). The app then reports "run the Claude Code
   CLI", which is what the user's next CLI start would show anyway.
-- The CLI is located on PATH first (`claude.exe`, then the npm `claude.cmd` shim, which runs through `cmd.exe /d /c`),
+- The CLI is located on PATH first (each folder in PATH order is checked for `claude.exe`, then an npm `claude.cmd` or `claude.bat` shim, which runs through `cmd.exe /d /c`, so a shim in an earlier folder wins over an exe in a later one),
   then as the newest `%APPDATA%\Claude\claude-code\<version>\claude.exe` bundled with Claude Desktop, which works
   standalone (about 2 s). Inherited `CLAUDECODE`, `CLAUDE_CODE_*`, `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN`
   variables are removed from the child's environment so a host token or an API key cannot pre-empt the OAuth refresh;

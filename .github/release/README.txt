@@ -15,9 +15,12 @@ Run
    The executable is not code-signed; if SmartScreen asks, choose "More info",
    then "Run anyway".
 3. Claude Code must be installed and signed in at least once: the app reads the
-   token Claude Code stores locally and never writes to it. If the token has
-   expired, run any Claude Code command to refresh it.
-4. Optional: right-click the tray icon and choose "Start with Windows".
+   token Claude Code stores locally and never writes to it. When the token has
+   expired the app starts the Claude Code CLI in the background once so it can
+   renew it; if that fails, run `claude` once yourself. The Claude Desktop app
+   alone never renews it.
+4. The app starts with Windows from its first launch. To stop that, turn off
+   "Start with Windows" in Settings or the tray menu.
 
 Files
 -----
@@ -28,9 +31,13 @@ README.txt          this file
 
 Privacy
 -------
-No telemetry. The only network destination is api.anthropic.com. The app writes
-only to %LOCALAPPDATA%\ClaudeTrayApp (cache, history, logs; tokens redacted) and
-%APPDATA%\ClaudeTrayApp\settings.json.
+No telemetry. Two network destinations: api.anthropic.com for usage, and a
+weekly update check at api.github.com that sends nothing about you and can be
+switched off in Settings. The app writes only to %LOCALAPPDATA%\ClaudeTrayApp
+(cache, history, logs; tokens redacted), %APPDATA%\ClaudeTrayApp\settings.json,
+and two per-user registry values: the Start with Windows entry under
+HKCU\Software\Microsoft\Windows\CurrentVersion\Run and a first-run flag under
+HKCU\Software\ClaudeUsageTray.
 
 Source, documentation and issues: https://github.com/mlcousek/claude_trayapp
 Releases and SHA256 checksums:    https://github.com/mlcousek/claude_trayapp/releases

@@ -18,7 +18,7 @@ Checked against <https://signpath.org/terms> on 2026-09-08. Nothing below needs 
 |---|---|
 | OSI-approved licence, no dual licensing | MIT, and every dependency is MIT, Apache-2.0 or BSD |
 | No proprietary components | None; the dependency list is enforced in `Directory.Packages.props` |
-| Actively maintained, already released | v0.1.2, released 2026-09-08 |
+| Actively maintained, already released | v0.1.5, released 2026-09-22; first release 2026-09-07 |
 | Functionality documented on the download page | README plus the release notes |
 | No hacking tools | Reads one local token belonging to the user and calls one documented-by-observation endpoint |
 | Privacy: disclose and allow disabling outbound traffic | README "Privacy" names both destinations; the update check is one setting away from off, and there is no telemetry |

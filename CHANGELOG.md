@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- A rate-limit answer asking to retry after hours could stop polling for that long; `Retry-After` is now honoured
+  only up to the 30-minute backoff cap.
+- Launching the app a second time while the first instance was still starting could do nothing at all; the second
+  launch's request to show the flyout is now kept until the first instance is ready for it.
+- A Claude Code CLI refresh that timed out could leave an unobserved error behind in the background.
+- The release zip's README described the pre-0.1.3 behaviour: it now mentions the automatic token refresh, Start with
+  Windows being on by default, the weekly update check and the two registry values the app writes.
+
 ## [0.1.5] - 2026-09-22
 
 ### Fixed

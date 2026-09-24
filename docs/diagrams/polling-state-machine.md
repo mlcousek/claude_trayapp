@@ -1,6 +1,6 @@
 # Polling state machine
 
-The OAuth provider's loop. Every transition back to Idle schedules the next tick; the delay is the configured interval (floor 180 s) or the current backoff, whichever is longer. Manual refresh is debounced through the same limiter and can never bypass a backoff.
+The OAuth provider's loop. Every transition back to Idle schedules the next tick; the delay is the configured interval (floor 180 s) or the current backoff, whichever is longer. Manual refresh is refused while rate limited until the next scheduled attempt, and otherwise at most once a minute; after other failures it may retry before the backoff ends.
 
 ```mermaid
 stateDiagram-v2
@@ -8,12 +8,12 @@ stateDiagram-v2
     Idle --> Fetching : tick (interval >= 180 s) or debounced manual refresh
     Fetching --> Ok : 200, parsed
     Fetching --> RateLimited : 429
-    Fetching --> Unauthenticated : 401, missing credentials, or token past expiresAt
+    Fetching --> Unauthenticated : 401 or 403, missing credentials, or token past expiresAt
     Fetching --> Stale : network error, timeout, 5xx, unparseable body
 
     Ok --> Idle : write cache.json + history, reset backoff, clear stale flag
-    Stale --> Idle : keep last snapshot, show "stale", backoff = min(2^n x interval, 30 min)
-    RateLimited --> Idle : keep last snapshot, show "rate limited", backoff = min(2^n x interval, 30 min)
+    Stale --> Idle : keep last snapshot, show "stale", backoff = 2^(n-1) x interval, capped at 30 min
+    RateLimited --> Idle : keep last snapshot, show "rate limited", same backoff, or Retry-After if longer (also capped at 30 min)
     Unauthenticated --> Idle : show "run the Claude Code CLI", re-read credentials next tick
 
     note right of Unauthenticated

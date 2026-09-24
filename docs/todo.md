@@ -1,6 +1,6 @@
 # To do
 
-Open work, most blocking first. Everything through v0.1.2 is done: the app is released, `main` is green, and
+Open work, most blocking first. Everything through v0.1.5 is done: the app is released, `main` is green, and
 nothing on this list is required for it to keep working.
 
 ## Waiting on you
@@ -22,6 +22,10 @@ indefinitely, since winget-pkgs eventually closes pull requests that go quiet.
 
 Once merged: `winget install mlcousek.ClaudeUsageTray`.
 
+The pull request offers 0.1.2 (checked 2026-09-24, no activity since 2026-09-11), three releases behind. After it
+merges, submit the current version with `wingetcreate update` and add its folder under `packaging/winget/`, since
+0.1.4 and 0.1.5 fixed the multi-monitor flyout and the expired sign-in.
+
 If a moderator asks about the name, the answer is already in the package description: an unofficial third-party
 tool, not affiliated with or endorsed by Anthropic, shipping none of their branding.
 
@@ -37,7 +41,8 @@ found, missing uninstall instructions and a missing code signing policy, are now
 has the comparison table, the wording to put in the application, and the rest of the procedure.
 
 **Applied on 2026-09-08**, and multi-factor authentication on the GitHub account is confirmed on, which they require
-of every team member. Their review is a human one and takes a few days; the answer arrives by email.
+of every team member. Their review is a human one and takes a few days; the answer arrives by email. No answer is
+recorded here as of 2026-09-24; check the inbox and note the outcome.
 
 On approval:
 
@@ -75,6 +80,18 @@ thin interface over `ThemeManager`'s reads would close the rest.
 `SettingsCoordinator` is now covered for retention, pruning and the pricing path. Two branches still are not: the
 theme, because applying one needs a running WPF application, and the poll-interval push, because `UsagePoller`
 keeps its options private to Core.
+
+## Deferred from the code review of 2026-09-24
+
+### The refresh nudge never runs on a server-side rejection
+
+`OAuthUsageProvider` starts `ClaudeCliRefreshNudge` only when the file's own `expiresAt` has passed. A 401 or 403
+for any other reason (a token revoked by the server, a skewed clock, an `expiresAt` the parser cannot read) leaves
+the "rejected" message up until the user runs the CLI. Calling the nudge on a 401 is not enough by itself:
+`Refreshed` means "the file's expiry is in the future", which is already true in that case, so the provider would
+have to compare the access token before and after instead. It is also unverified whether the CLI renews a token that
+looks valid to it, and a signed-out user would get a CLI start on every poll. Needs a live test with a revoked token
+before any change.
 
 ## Seen once, not explained
 
