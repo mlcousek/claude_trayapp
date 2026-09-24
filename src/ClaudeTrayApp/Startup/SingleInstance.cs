@@ -32,16 +32,19 @@ public sealed class SingleInstance : IDisposable
     /// </summary>
     internal static bool TryAcquire(string mutexName, string activationEventName, out SingleInstance? instance)
     {
+        // The event comes first, so it exists whenever the mutex does: a second launch arriving while the first is
+        // still starting finds it and leaves it signalled, and the first picks the signal up once it listens.
+        var activation = new EventWaitHandle(false, EventResetMode.AutoReset, activationEventName);
         var mutex = new Mutex(initiallyOwned: true, mutexName, out var createdNew);
         if (!createdNew)
         {
             mutex.Dispose();
-            SignalExisting(activationEventName);
+            activation.Set();
+            activation.Dispose();
             instance = null;
             return false;
         }
 
-        var activation = new EventWaitHandle(false, EventResetMode.AutoReset, activationEventName);
         instance = new SingleInstance(mutex, activation);
         return true;
     }
@@ -78,18 +81,5 @@ public sealed class SingleInstance : IDisposable
         }
 
         _mutex.Dispose();
-    }
-
-    private static void SignalExisting(string activationEventName)
-    {
-        try
-        {
-            using var activation = EventWaitHandle.OpenExisting(activationEventName);
-            activation.Set();
-        }
-        catch (WaitHandleCannotBeOpenedException)
-        {
-            // The first instance is still starting up; it will show its icon shortly anyway.
-        }
     }
 }

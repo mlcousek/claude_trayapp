@@ -8,8 +8,8 @@ namespace ClaudeTrayApp.Tests;
 /// <see cref="SingleInstance.TryAcquire(string, string, out SingleInstance?)"/> call finding the mutex already held
 /// is the same code path a genuine second process would hit. Every test uses a GUID-suffixed name rather than the
 /// production "Local\ClaudeUsageTray.*" names: this machine may have a real instance already running, and colliding
-/// with its mutex would make the test fail for reasons unrelated to this code, and SignalExisting would pop that
-/// real instance's flyout as a side effect of running the test suite.
+/// with its mutex would make the test fail for reasons unrelated to this code, and the activation signal would pop
+/// that real instance's flyout as a side effect of running the test suite.
 /// </summary>
 public class SingleInstanceTests
 {
@@ -53,6 +53,29 @@ public class SingleInstanceTests
 
             SingleInstance.TryAcquire(mutexName, eventName, out var second).ShouldBeFalse();
             second.ShouldBeNull();
+
+            activated.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken).ShouldBeTrue();
+        }
+        finally
+        {
+            first!.Dispose();
+        }
+    }
+
+    [Fact]
+    public void A_signal_sent_before_the_first_instance_listens_is_not_lost()
+    {
+        var (mutexName, eventName) = UniqueNames();
+
+        SingleInstance.TryAcquire(mutexName, eventName, out var first).ShouldBeTrue();
+        first.ShouldNotBeNull();
+
+        try
+        {
+            SingleInstance.TryAcquire(mutexName, eventName, out _).ShouldBeFalse();
+
+            using var activated = new ManualResetEventSlim(false);
+            first!.ListenForActivation(() => activated.Set());
 
             activated.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken).ShouldBeTrue();
         }
