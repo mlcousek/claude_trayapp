@@ -1,6 +1,6 @@
 # To do
 
-Open work, most blocking first. Everything through v0.1.5 is done: the app is released, `main` is green, and
+Open work, most blocking first. Everything through v0.1.6 is done: the app is released, `main` is green, and
 nothing on this list is required for it to keep working.
 
 ## Waiting on you
@@ -22,9 +22,10 @@ indefinitely, since winget-pkgs eventually closes pull requests that go quiet.
 
 Once merged: `winget install mlcousek.ClaudeUsageTray`.
 
-The pull request offers 0.1.2 (checked 2026-09-24, no activity since 2026-09-11), three releases behind. After it
-merges, submit the current version with `wingetcreate update` and add its folder under `packaging/winget/`, since
-0.1.4 and 0.1.5 fixed the multi-monitor flyout and the expired sign-in.
+The pull request offers 0.1.2 (checked 2026-09-24, no activity since 2026-09-11), four releases behind. The 0.1.6
+manifests are ready and validated in `packaging/winget/0.1.6/`: either push them to the pull request's branch so it
+offers 0.1.6 directly, or submit them with `wingetcreate submit` once 0.1.2 merges. 0.1.4 to 0.1.6 fixed the
+multi-monitor flyout, the expired sign-in and several smaller bugs.
 
 If a moderator asks about the name, the answer is already in the package description: an unofficial third-party
 tool, not affiliated with or endorsed by Anthropic, shipping none of their branding.

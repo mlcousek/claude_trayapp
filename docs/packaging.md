@@ -112,12 +112,13 @@ Take the checksums from the release's own `SHA256SUMS.txt` rather than retyping 
 Validate any change locally before submitting:
 
 ```powershell
-winget validate --manifest packaging\winget\0.1.2
+winget validate --manifest packaging\winget\0.1.6
 ```
 
 ### Status
 
-0.1.2 was submitted on 2026-09-08: <https://github.com/microsoft/winget-pkgs/pull/431350>. Once it is merged the
+0.1.2 was submitted on 2026-09-08: <https://github.com/microsoft/winget-pkgs/pull/431350>, still open and waiting on the CLA.
+The 0.1.6 manifests are prepared and validated in `packaging/winget/0.1.6/` but not submitted. Once a version is merged the
 package installs with `winget install mlcousek.ClaudeUsageTray`. Automated validation runs first, then a moderator
 looks at it; expect a question about the name, since "Claude" is Anthropic's trademark and this is a third-party
 tool. The answer is the disclaimer already in the locale manifest's description.
