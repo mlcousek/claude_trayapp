@@ -66,7 +66,8 @@ public sealed record PollStatus(
 /// </summary>
 public sealed class PollingStateMachine
 {
-    private PollingOptions _options;
+    // Written from the settings thread, read by the polling loop.
+    private volatile PollingOptions _options;
 
     public PollingStateMachine(PollingOptions options)
     {
@@ -110,7 +111,9 @@ public sealed class PollingStateMachine
             case UsageFetchStatus.RateLimited:
             {
                 var failures = current.ConsecutiveFailures + 1;
-                var delay = Max(Backoff(failures), result.RetryAfter ?? TimeSpan.Zero);
+                // Retry-After is honoured, but never beyond the backoff cap: a far-future header must not stall polling for hours.
+                var retryAfter = Min(result.RetryAfter ?? TimeSpan.Zero, Options.MaxBackoff);
+                var delay = Max(Backoff(failures), retryAfter);
                 return (current with
                 {
                     State = PollState.RateLimited,

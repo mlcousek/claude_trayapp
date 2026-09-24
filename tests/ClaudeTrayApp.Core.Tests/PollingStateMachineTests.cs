@@ -86,6 +86,18 @@ public class PollingStateMachineTests
     }
 
     [Fact]
+    public void Retry_after_is_capped_at_the_maximum_backoff()
+    {
+        var (status, delay) = Machine().Complete(
+            PollStatus.Initial(null),
+            UsageFetchResult.Failed(UsageFetchStatus.RateLimited, "429", TimeSpan.FromHours(6)),
+            Now);
+
+        delay.ShouldBe(PollingOptions.DefaultMaxBackoff);
+        status.NextAttempt.ShouldBe(Now + PollingOptions.DefaultMaxBackoff);
+    }
+
+    [Fact]
     public void Retry_after_never_shortens_the_backoff()
     {
         var (_, delay) = Machine().Complete(
