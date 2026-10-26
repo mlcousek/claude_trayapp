@@ -146,6 +146,29 @@ public sealed class UpdateCheckServiceTests : IDisposable
     }
 
     [Fact]
+    public void Another_account_leaves_the_check_to_a_running_default_account()
+    {
+        var github = Answering(HttpStatusCode.OK, Latest("v0.2.0"));
+
+        var announced = RunOnce(github, defaultAccountRunning: () => true);
+
+        github.Calls.ShouldBe(0);
+        announced.ShouldBe(0);
+        _state.Load().ShouldBe(UpdateCheckState.Empty);
+    }
+
+    [Fact]
+    public void Another_account_checks_while_the_default_account_is_not_running()
+    {
+        var github = Answering(HttpStatusCode.OK, Latest("v0.2.0"));
+
+        var announced = RunOnce(github, defaultAccountRunning: () => false);
+
+        github.Calls.ShouldBe(1);
+        announced.ShouldBe(1);
+    }
+
+    [Fact]
     public void The_announcement_names_both_versions() =>
         UpdateCheckService.FormatAvailable(new ReleaseInfo(new Version(0, 2, 0), "v0.2.0", "https://example.invalid"), new Version(0, 1, 1))
             .ShouldBe("Claude Usage Tray 0.2.0 is available. You are on 0.1.1.");
@@ -157,7 +180,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
         new(_ => new HttpResponseMessage(status) { Content = new StringContent(body) });
 
     /// <summary>Runs one evaluation on an STA thread, pumps its dispatcher, and returns how many announcements were made.</summary>
-    private int RunOnce(StubHandler github) => StaThread.Run(() =>
+    private int RunOnce(StubHandler github, Func<bool>? defaultAccountRunning = null) => StaThread.Run(() =>
     {
         using var http = new HttpClient(github);
         var checker = new UpdateChecker(http, "0.1.1", NullLogger<UpdateChecker>.Instance);
@@ -170,7 +193,8 @@ public sealed class UpdateCheckServiceTests : IDisposable
             services,
             Dispatcher.CurrentDispatcher,
             _clock,
-            NullLogger<UpdateCheckService>.Instance);
+            NullLogger<UpdateCheckService>.Instance,
+            defaultAccountRunning);
 
         service.RunOnceAsync(CancellationToken.None).GetAwaiter().GetResult();
         PumpDispatcher();

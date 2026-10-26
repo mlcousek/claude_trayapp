@@ -37,7 +37,7 @@ public sealed class TrayIconController : IDisposable
             MenuActivation = PopupActivationMode.RightClick,
             NoLeftClickDelay = true,
         };
-        AutomationProperties.SetName(_icon, "Claude Usage Tray");
+        AutomationProperties.SetName(_icon, viewModel.NotificationTitle("Claude Usage Tray"));
 
         _icon.TrayLeftMouseUp += OnTrayLeftMouseUp;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -85,7 +85,7 @@ public sealed class TrayIconController : IDisposable
     public void ShowNotification(TrayNotification notification)
     {
         ArgumentNullException.ThrowIfNull(notification);
-        _icon.ShowNotification(notification.Title, notification.Message, notification.IsWarning ? NotificationIcon.Warning : NotificationIcon.Info);
+        _icon.ShowNotification(_viewModel.NotificationTitle(notification.Title), notification.Message, notification.IsWarning ? NotificationIcon.Warning : NotificationIcon.Info);
     }
 
     private static ContextMenu BuildMenu(TrayIconViewModel viewModel)
@@ -111,7 +111,7 @@ public sealed class TrayIconController : IDisposable
         try
         {
             _lastSize = IconPixelSize();
-            var bitmap = TrayIconRenderer.Render(_viewModel.IconState, _lastSize, _theme.GetTrayPalette());
+            var bitmap = TrayIconRenderer.Render(_viewModel.IconState, _lastSize, _theme.GetTrayPalette(), _viewModel.Badge);
             var previous = _icon.Icon;
             _icon.Icon = IconConverter.ToIcon(bitmap);
             previous?.Dispose();
@@ -125,7 +125,7 @@ public sealed class TrayIconController : IDisposable
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(TrayIconViewModel.IconState))
+        if (e.PropertyName is nameof(TrayIconViewModel.IconState) or nameof(TrayIconViewModel.Badge))
         {
             Redraw();
         }

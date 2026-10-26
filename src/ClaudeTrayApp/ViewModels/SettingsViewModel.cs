@@ -44,6 +44,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     ];
 
     private readonly SettingsStore _store;
+    private readonly SettingsStore _global;
+    private readonly AccountIdentity _account;
     private readonly IAutostartEntry _autostart;
     private readonly PricingProvider _pricing;
     private readonly UsagePoller _poller;
@@ -134,9 +136,13 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         UpdateNotifier updates,
         UpdateChecker updateChecker,
         Dispatcher dispatcher,
-        ILogger<SettingsViewModel> logger)
+        ILogger<SettingsViewModel> logger,
+        SettingsStore? globalStore = null,
+        AccountIdentity? account = null)
     {
         _store = store;
+        _global = globalStore ?? store;
+        _account = account ?? AccountIdentity.Default;
         _autostart = autostart;
         _pricing = pricing;
         _poller = poller;
@@ -150,6 +156,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         LoadFrom(_store.Current);
         RefreshAutostart();
         _store.Changed += OnSettingsChanged;
+        if (HasSeparateGlobalSettings)
+        {
+            _global.Changed += OnGlobalSettingsChanged;
+        }
+
+        _account.PropertyChanged += OnAccountChanged;
         _pricing.Changed += OnPricingChanged;
         _poller.StatusChanged += OnPollStatusChanged;
         _updates.Changed += OnUpdatesChanged;
@@ -165,10 +177,23 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 
     public string SettingsFolder => Path.GetDirectoryName(_store.Path) ?? _store.Path;
 
-    /// <summary>Copies the settings into the editable fields without writing anything back.</summary>
+    /// <summary>True for an account started with <c>--claude-dir</c>: theme and update check live in the shared root file.</summary>
+    public bool HasSeparateGlobalSettings => !ReferenceEquals(_store, _global);
+
+    /// <summary>Where the theme and update check are kept; shown beside them when it is not <see cref="SettingsPath"/>.</summary>
+    public string GlobalSettingsNote => "Shared by every account, kept in " + _global.Path;
+
+    /// <summary>"Claude Usage Tray settings", plus " · Work" for an account started with <c>--claude-dir</c>.</summary>
+    public string WindowTitle => _account.Decorate("Claude Usage Tray settings");
+
+    /// <summary>
+    /// Copies the settings into the editable fields without writing anything back. Theme and update check are read from
+    /// the shared store when this account has one of its own.
+    /// </summary>
     public void LoadFrom(AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        var global = HasSeparateGlobalSettings ? _global.Current : settings;
         _loading = true;
         try
         {
@@ -176,12 +201,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             PollIntervalNote = null;
             RefreshTrayWindowChoices(settings.TrayWindow);
             SelectedChartRange = ChartRangeChoices.FirstOrDefault(c => c.Value == settings.ChartRangeHours) ?? ChartRangeChoices[0];
-            SelectedTheme = ThemeChoices.First(c => c.Value == settings.Theme);
+            SelectedTheme = ThemeChoices.First(c => c.Value == global.Theme);
             MaskEmail = settings.MaskEmail;
             ShowLocalAnalytics = settings.ShowLocalAnalytics;
             ShowExtraUsage = settings.ShowExtraUsage;
             ShowInactiveWindows = settings.ShowInactiveWindows;
-            CheckForUpdates = settings.CheckForUpdates;
+            CheckForUpdates = global.CheckForUpdates;
             RetentionText = settings.HistoryRetentionDays.ToString(CultureInfo.InvariantCulture);
             RetentionNote = null;
             NotificationsEnabled = settings.Notifications.Enabled;
@@ -189,7 +214,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             ThresholdsNote = null;
             PricingPathText = settings.PricingFilePath ?? string.Empty;
             UpdatePricingStatus();
-            FileError = _store.LastError;
+            FileError = _store.LastError ?? _global.LastError;
         }
         finally
         {
@@ -271,6 +296,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _store.Changed -= OnSettingsChanged;
+        _global.Changed -= OnGlobalSettingsChanged;
+        _account.PropertyChanged -= OnAccountChanged;
         _pricing.Changed -= OnPricingChanged;
         _poller.StatusChanged -= OnPollStatusChanged;
         _updates.Changed -= OnUpdatesChanged;
@@ -296,7 +323,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 
     partial void OnCheckForUpdatesChanged(bool value)
     {
-        Persist(s => s with { CheckForUpdates = value });
+        PersistGlobal(s => s with { CheckForUpdates = value });
         UpdateUpdateStatus();
     }
 
@@ -314,7 +341,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     {
         if (value is not null)
         {
-            Persist(s => s with { Theme = value.Value });
+            PersistGlobal(s => s with { Theme = value.Value });
         }
     }
 
@@ -476,7 +503,19 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         }
 
         _store.Update(change);
-        FileError = _store.LastError;
+        FileError = _store.LastError ?? _global.LastError;
+    }
+
+    /// <summary>Writes a shared setting (theme, update check) to the root file every account reads.</summary>
+    private void PersistGlobal(Func<AppSettings, AppSettings> change)
+    {
+        if (_loading)
+        {
+            return;
+        }
+
+        _global.Update(change);
+        FileError = _store.LastError ?? _global.LastError;
     }
 
     private void UpdatePricingStatus()
@@ -524,6 +563,15 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     }
 
     private void OnSettingsChanged(object? sender, AppSettings settings) => _dispatcher.BeginInvoke(() => LoadFrom(settings));
+
+    private void OnGlobalSettingsChanged(object? sender, AppSettings settings) => _dispatcher.BeginInvoke(() =>
+    {
+        LoadFrom(_store.Current);
+        UpdateUpdateStatus();
+    });
+
+    private void OnAccountChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
+        _dispatcher.BeginInvoke(() => OnPropertyChanged(nameof(WindowTitle)));
 
     private void OnPricingChanged(object? sender, EventArgs e) => _dispatcher.BeginInvoke(UpdatePricingStatus);
 

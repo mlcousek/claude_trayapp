@@ -1,5 +1,7 @@
 using System.IO;
 using System.Security;
+using System.Text;
+using ClaudeTrayApp.Core.Account;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 
@@ -7,7 +9,8 @@ namespace ClaudeTrayApp.Startup;
 
 /// <summary>
 /// The per-user "Start with Windows" entry: a value under HKCU\...\Run pointing at this executable. On by default,
-/// switched off from the settings window or the tray menu, and never needs elevation.
+/// switched off from the settings window or the tray menu, and never needs elevation. Each account has its own value
+/// and its own once-only marker; an account started with <c>--claude-dir</c> stores that argument in its command.
 /// </summary>
 public sealed class AutostartManager : IAutostartEntry
 {
@@ -17,17 +20,24 @@ public sealed class AutostartManager : IAutostartEntry
     private const string AppKeyPath = @"Software\ClaudeUsageTray";
 
     private readonly string _executablePath;
+    private readonly AccountContext _account;
     private readonly ILogger<AutostartManager> _logger;
 
-    public AutostartManager(string executablePath, ILogger<AutostartManager> logger)
+    public AutostartManager(string executablePath, ILogger<AutostartManager> logger, AccountContext? account = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(executablePath);
         _executablePath = Path.GetFullPath(executablePath);
+        _account = account ?? AccountContext.Default;
         _logger = logger;
     }
 
-    /// <summary>The command the Run entry holds when enabled: the quoted path of this executable.</summary>
-    public string Command => BuildCommand(_executablePath);
+    /// <summary>The command the Run entry holds when enabled: the quoted path of this executable, plus the account's arguments.</summary>
+    public string Command => BuildCommand(_executablePath, _account);
+
+    /// <summary>"ClaudeUsageTray" for the default account, "ClaudeUsageTray.&lt;key&gt;" for the others.</summary>
+    public string RunValueName => RunValueNameFor(_account);
+
+    private string MarkerKeyPath => MarkerKeyPathFor(_account);
 
     /// <summary>True when the Run entry exists and points at this executable.</summary>
     public bool IsEnabled()
@@ -35,7 +45,7 @@ public sealed class AutostartManager : IAutostartEntry
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath);
-            return Matches(key?.GetValue(ValueName) as string, _executablePath);
+            return Matches(key?.GetValue(RunValueName) as string, _executablePath);
         }
         catch (Exception ex) when (ex is SecurityException or IOException or UnauthorizedAccessException)
         {
@@ -52,12 +62,12 @@ public sealed class AutostartManager : IAutostartEntry
             using var key = Registry.CurrentUser.CreateSubKey(RunKeyPath, writable: true);
             if (enabled)
             {
-                key.SetValue(ValueName, Command, RegistryValueKind.String);
+                key.SetValue(RunValueName, Command, RegistryValueKind.String);
                 _logger.LogInformation("Start with Windows enabled: {Command}", Command);
             }
             else
             {
-                key.DeleteValue(ValueName, throwOnMissingValue: false);
+                key.DeleteValue(RunValueName, throwOnMissingValue: false);
                 _logger.LogInformation("Start with Windows disabled");
             }
 
@@ -81,7 +91,7 @@ public sealed class AutostartManager : IAutostartEntry
     {
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey(AppKeyPath);
+            using var key = Registry.CurrentUser.OpenSubKey(MarkerKeyPath);
             return key?.GetValue(DefaultAppliedValueName) is int and not 0;
         }
         catch (Exception ex) when (ex is SecurityException or IOException or UnauthorizedAccessException)
@@ -98,7 +108,7 @@ public sealed class AutostartManager : IAutostartEntry
     {
         try
         {
-            using var key = Registry.CurrentUser.CreateSubKey(AppKeyPath, writable: true);
+            using var key = Registry.CurrentUser.CreateSubKey(MarkerKeyPath, writable: true);
             key.SetValue(DefaultAppliedValueName, 1, RegistryValueKind.DWord);
         }
         catch (Exception ex) when (ex is SecurityException or IOException or UnauthorizedAccessException)
@@ -108,6 +118,44 @@ public sealed class AutostartManager : IAutostartEntry
     }
 
     internal static string BuildCommand(string executablePath) => "\"" + executablePath + "\"";
+
+    /// <summary>
+    /// The default account's command is the bare quoted exe, as it always was. Another account adds its
+    /// <c>--claude-dir</c>, and <c>--label</c> only when the instance was started with one, so the entry reproduces
+    /// exactly the invocation the user chose.
+    /// </summary>
+    internal static string BuildCommand(string executablePath, AccountContext account)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+        if (account.ClaudeHome is not { } home)
+        {
+            return BuildCommand(executablePath);
+        }
+
+        var command = new StringBuilder(BuildCommand(executablePath))
+            .Append(' ').Append(AccountContext.ClaudeDirSwitch).Append(' ').Append(QuoteArgument(home));
+        if (account.LabelArgument is { } label)
+        {
+            command.Append(' ').Append(AccountContext.LabelSwitch).Append(' ').Append(QuoteArgument(label));
+        }
+
+        return command.ToString();
+    }
+
+    internal static string RunValueNameFor(AccountContext account) => account.Key is { } key ? ValueName + "." + key : ValueName;
+
+    internal static string MarkerKeyPathFor(AccountContext account) => account.Key is { } key ? AppKeyPath + @"\Accounts\" + key : AppKeyPath;
+
+    /// <summary>
+    /// Quotes one argument for the Windows command-line parser. Values never contain a double quote (paths cannot, labels
+    /// are stripped of them), so only trailing backslashes need doubling: <c>"C:\"</c> would otherwise escape its own
+    /// closing quote.
+    /// </summary>
+    internal static string QuoteArgument(string value)
+    {
+        var trailing = value.Length - value.TrimEnd('\\').Length;
+        return "\"" + value + new string('\\', trailing) + "\"";
+    }
 
     /// <summary>A stored value counts when its executable (with or without quotes) is this one, case-insensitively.</summary>
     internal static bool Matches(string? storedValue, string executablePath)

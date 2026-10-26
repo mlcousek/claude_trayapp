@@ -43,6 +43,12 @@ public sealed record AppSettings
 
     public static AppSettings Default { get; } = new();
 
+    /// <summary>
+    /// JSON names of the settings every account shares. They live in the root settings.json; an account's own file
+    /// neither writes nor honours them.
+    /// </summary>
+    public static IReadOnlyList<string> GlobalPropertyNames { get; } = ["theme", "checkForUpdates"];
+
     /// <summary>Seconds between polls of the usage endpoint. The floor is a hard rule.</summary>
     public int PollIntervalSeconds { get; init; } = DefaultPollIntervalSeconds;
 
@@ -100,6 +106,9 @@ public sealed record AppSettings
             PricingFilePath = string.IsNullOrWhiteSpace(PricingFilePath) ? null : PricingFilePath.Trim(),
         };
     }
+
+    /// <summary>The same settings with the shared ones (<see cref="GlobalPropertyNames"/>) back at their defaults.</summary>
+    public AppSettings WithoutGlobals() => this with { Theme = Default.Theme, CheckForUpdates = Default.CheckForUpdates };
 
     /// <summary>The polling options these settings ask for; the poller applies its own floor again.</summary>
     public PollingOptions ToPollingOptions() => new() { Interval = PollInterval };

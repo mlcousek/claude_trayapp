@@ -69,6 +69,77 @@ public class TrayIconViewModelTests
     }
 
     [Fact]
+    public void Tooltip_names_another_account_by_its_label()
+    {
+        TrayIconViewModel.BuildTooltip(Status(PollState.Ok), Now, accountLabel: "Work")
+            .ShouldStartWith("Claude usage (Work): 5-hour 86%");
+
+        var status = new PollStatus(PollState.Unauthenticated, null, null, Now, null, "Sign in with Claude Code first.", 0);
+        TrayIconViewModel.BuildTooltip(status, Now, accountLabel: "Work").ShouldBe("Claude Usage Tray (Work): Sign in with Claude Code first.");
+    }
+
+    [Fact]
+    public void A_labelled_tooltip_still_respects_the_shell_limit()
+    {
+        var windows = Enumerable.Range(0, 3)
+            .Select(i => UsageWindow.Create("a_very_long_window_key_number_" + i, 50, Now.AddDays(6)))
+            .ToList();
+        var status = new PollStatus(PollState.Ok, Snapshot() with { Windows = windows }, Now, Now, null, null, 0);
+
+        var tooltip = TrayIconViewModel.BuildTooltip(status, Now, accountLabel: new string('W', 32));
+
+        tooltip.Length.ShouldBeLessThanOrEqualTo(TrayIconViewModel.TooltipLimit);
+        tooltip.ShouldStartWith("Claude usage (" + new string('W', 32) + "): ");
+    }
+
+    [Fact]
+    public void Titles_and_about_text_name_only_another_account()
+    {
+        var work = Identity(Path.GetFullPath(Path.Combine("profile", ".claude-work")), "--label", "Work");
+
+        AccountIdentity.Default.Decorate("Claude usage").ShouldBe("Claude usage");
+        work.Decorate("Claude usage").ShouldBe("Claude usage · Work");
+        TrayIconViewModel.DescribeAccount(AccountIdentity.Default).ShouldBeEmpty();
+        TrayIconViewModel.DescribeAccount(work).ShouldContain("Account: Work");
+        TrayIconViewModel.DescribeAccount(work).ShouldContain(".claude-work");
+        work.Badge.ShouldBe("W");
+        AccountIdentity.Default.Badge.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("work", "W")]
+    [InlineData("Acme Corp", "A")]
+    [InlineData("claude-work", "C")]
+    [InlineData("(beta) team", "B")]
+    [InlineData("42 labs", "4")]
+    [InlineData("čeština", "Č")]
+    [InlineData("--", "-")]
+    [InlineData(null, null)]
+    [InlineData("  ", null)]
+    public void The_badge_is_the_labels_first_letter_in_capitals(string? label, string? expected) =>
+        AccountIdentity.BadgeFor(label).ShouldBe(expected);
+
+    [Fact]
+    public void The_label_follows_the_account_block_once_it_is_read()
+    {
+        var work = Identity(Path.GetFullPath(Path.Combine("profile", ".claude-work")));
+
+        work.Label.ShouldBe("claude-work");
+        work.Badge.ShouldBe("C");
+        work.Update(Core.Account.AccountInfo.Empty with { OrganizationName = "Acme Corp" });
+
+        work.Label.ShouldBe("Acme Corp");
+        work.Badge.ShouldBe("A");
+    }
+
+    private static AccountIdentity Identity(string home, params string[] extra)
+    {
+        Core.Account.AccountContext.TryParse(["--claude-dir", home, .. extra], Path.GetFullPath(Path.Combine("profile", ".claude")), out var account, out var error)
+            .ShouldBeTrue(error);
+        return new AccountIdentity(account);
+    }
+
+    [Fact]
     public void Tooltip_never_exceeds_the_shell_limit()
     {
         var windows = Enumerable.Range(0, 3)

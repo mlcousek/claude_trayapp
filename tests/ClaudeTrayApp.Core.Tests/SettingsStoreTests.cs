@@ -6,6 +6,14 @@ namespace ClaudeTrayApp.Core.Tests;
 
 public sealed class SettingsStoreTests : IDisposable
 {
+    /// <summary>How settings.json was written before accounts existed; the default account's file must not change.</summary>
+    private static readonly System.Text.Json.JsonSerializerOptions PreviousFormat = new()
+    {
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+        WriteIndented = true,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter(System.Text.Json.JsonNamingPolicy.CamelCase) },
+    };
+
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "ClaudeTrayApp.Tests", Guid.NewGuid().ToString("N"));
 
     private string SettingsPath => Path.Combine(_directory, "settings.json");
@@ -138,6 +146,79 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void A_change_switched_back_by_another_process_is_followed()
+    {
+        using var store = Create();
+        store.Load();
+        var ownText = File.ReadAllText(SettingsPath);
+
+        File.WriteAllText(SettingsPath, ownText.Replace("\"theme\": \"system\"", "\"theme\": \"light\"", StringComparison.Ordinal));
+        store.Reload().ShouldBeTrue();
+        store.Current.Theme.ShouldBe(ThemeSetting.Light);
+
+        // The other process restores the very text this store wrote; it is still a change to follow.
+        File.WriteAllText(SettingsPath, ownText);
+        store.Reload().ShouldBeTrue();
+        store.Current.Theme.ShouldBe(ThemeSetting.System);
+    }
+
+    [Fact]
+    public void Update_keeps_a_change_another_process_made_moments_ago()
+    {
+        using var store = Create();
+        store.Load();
+
+        // Another account's instance wrote the shared file; this store's watcher has not caught up yet.
+        File.WriteAllText(SettingsPath, "{ \"pollIntervalSeconds\": 900 }");
+        store.Update(s => s with { Theme = ThemeSetting.Dark });
+
+        using var reader = Create();
+        var settings = reader.Load();
+        settings.PollIntervalSeconds.ShouldBe(900);
+        settings.Theme.ShouldBe(ThemeSetting.Dark);
+    }
+
+    [Fact]
+    public void A_store_that_excludes_globals_neither_writes_nor_honours_them()
+    {
+        using var store = Create(excludeGlobals: true);
+
+        store.Load();
+        store.Update(s => s with { Theme = ThemeSetting.Dark, CheckForUpdates = false, PollIntervalSeconds = 600 });
+
+        var json = File.ReadAllText(SettingsPath);
+        json.ShouldNotContain("\"theme\"");
+        json.ShouldNotContain("\"checkForUpdates\"");
+        json.ShouldContain("\"pollIntervalSeconds\": 600");
+        store.Current.Theme.ShouldBe(AppSettings.Default.Theme);
+        store.Current.CheckForUpdates.ShouldBe(AppSettings.Default.CheckForUpdates);
+    }
+
+    [Fact]
+    public void Hand_edited_globals_in_an_account_file_are_ignored()
+    {
+        Directory.CreateDirectory(_directory);
+        File.WriteAllText(SettingsPath, "{ \"theme\": \"dark\", \"checkForUpdates\": false, \"maskEmail\": false }");
+        using var store = Create(excludeGlobals: true);
+
+        var settings = store.Load();
+
+        settings.Theme.ShouldBe(AppSettings.Default.Theme);
+        settings.CheckForUpdates.ShouldBe(AppSettings.Default.CheckForUpdates);
+        settings.MaskEmail.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void A_store_that_keeps_globals_writes_the_same_bytes_as_before()
+    {
+        using var store = Create();
+
+        store.Load();
+
+        File.ReadAllText(SettingsPath).ShouldBe(System.Text.Json.JsonSerializer.Serialize(AppSettings.Default, PreviousFormat) + Environment.NewLine);
+    }
+
+    [Fact]
     public async Task External_edits_are_reloaded_by_the_watcher()
     {
         using var store = Create(TimeSpan.FromMilliseconds(50));
@@ -168,5 +249,6 @@ public sealed class SettingsStoreTests : IDisposable
         }
     }
 
-    private SettingsStore Create(TimeSpan? debounce = null) => new(SettingsPath, new ListLogger<SettingsStore>(), debounce);
+    private SettingsStore Create(TimeSpan? debounce = null, bool excludeGlobals = false) =>
+        new(SettingsPath, new ListLogger<SettingsStore>(), debounce, excludeGlobals);
 }

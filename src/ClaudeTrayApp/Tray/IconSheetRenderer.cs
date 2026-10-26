@@ -17,15 +17,21 @@ public static class IconSheetRenderer
     private const int Gap = 12;
     private const int Margin = 16;
 
-    private static readonly TrayIconState[] States =
+    /// <summary>Every state without a badge, then the ones most likely to crowd a second account's letter badge.</summary>
+    private static readonly (TrayIconState State, string? Badge)[] Rows =
     [
-        TrayIconState.Unknown,
-        new(12, UsageWindowStatus.Ok, false),
-        new(45, UsageWindowStatus.Ok, false),
-        new(72, UsageWindowStatus.Warning, false),
-        new(86, UsageWindowStatus.Warning, true),
-        new(93, UsageWindowStatus.Critical, false),
-        new(100, UsageWindowStatus.Exhausted, false),
+        (TrayIconState.Unknown, null),
+        (new(12, UsageWindowStatus.Ok, false), null),
+        (new(45, UsageWindowStatus.Ok, false), null),
+        (new(72, UsageWindowStatus.Warning, false), null),
+        (new(86, UsageWindowStatus.Warning, true), null),
+        (new(93, UsageWindowStatus.Critical, false), null),
+        (new(100, UsageWindowStatus.Exhausted, false), null),
+        (TrayIconState.Unknown, "W"),
+        (new(45, UsageWindowStatus.Ok, false), "W"),
+        (new(86, UsageWindowStatus.Warning, true), "W"),
+        (new(93, UsageWindowStatus.Critical, false), "A"),
+        (new(100, UsageWindowStatus.Exhausted, false), "M"),
     ];
 
     public static IReadOnlyList<string> RenderSheets(string directory, TrayPalette darkTaskbar, TrayPalette lightTaskbar)
@@ -46,7 +52,7 @@ public static class IconSheetRenderer
         var columnWidth = largest + Gap + (largest * Zoom) + Gap;
         var rowHeight = (largest * Zoom) + Gap;
         var width = Margin + (sizes.Count * columnWidth) + Margin;
-        var height = Margin + 20 + (States.Length * rowHeight) + Margin;
+        var height = Margin + 20 + (Rows.Length * rowHeight) + Margin;
 
         var visual = new DrawingVisual();
         RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.NearestNeighbor);
@@ -73,14 +79,14 @@ public static class IconSheetRenderer
                 context.DrawText(caption, new Point(Margin + (column * columnWidth), Margin));
             }
 
-            for (var row = 0; row < States.Length; row++)
+            for (var row = 0; row < Rows.Length; row++)
             {
                 var y = Margin + 20 + (row * rowHeight);
                 for (var column = 0; column < sizes.Count; column++)
                 {
                     var size = sizes[column];
                     var x = Margin + (column * columnWidth);
-                    var bitmap = TrayIconRenderer.Render(States[row], size, palette);
+                    var bitmap = TrayIconRenderer.Render(Rows[row].State, size, palette, Rows[row].Badge);
                     context.DrawImage(bitmap, new Rect(x, y, size, size));
                     context.DrawImage(bitmap, new Rect(x + largest + Gap, y, size * Zoom, size * Zoom));
                 }

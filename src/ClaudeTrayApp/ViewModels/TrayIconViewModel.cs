@@ -36,6 +36,7 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
     private readonly Action _quit;
     private readonly string _version;
     private readonly ILogger<TrayIconViewModel> _logger;
+    private readonly AccountIdentity _account;
     private bool _loadingAutostart;
 
     [ObservableProperty]
@@ -58,7 +59,8 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
         Action openSettings,
         Action quit,
         string version,
-        ILogger<TrayIconViewModel> logger)
+        ILogger<TrayIconViewModel> logger,
+        AccountIdentity? account = null)
     {
         _poller = poller;
         _paths = paths;
@@ -71,9 +73,11 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
         _quit = quit;
         _version = version;
         _logger = logger;
+        _account = account ?? AccountIdentity.Default;
 
         _poller.StatusChanged += OnStatusChanged;
         _settings.Changed += OnSettingsChanged;
+        _account.PropertyChanged += OnAccountChanged;
         Apply(_poller.Status);
         RefreshAutostart();
     }
@@ -93,7 +97,7 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
         IconState = primary is null
             ? TrayIconState.Unknown with { IsStale = stale }
             : new TrayIconState(primary.UtilizationPercent, primary.Status, stale);
-        Tooltip = BuildTooltip(status, now, settings.ShowInactiveWindows);
+        Tooltip = BuildTooltip(status, now, settings.ShowInactiveWindows, _account.Label);
 
         if (status.State == PollState.Ok && status.Snapshot is { } snapshot && settings.Notifications.Enabled)
         {
@@ -127,20 +131,24 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
         return string.Create(CultureInfo.InvariantCulture, $"{alert.WindowName} usage is at {Math.Round(alert.Percent)}%, past your {alert.Threshold}% mark.{reset}");
     }
 
-    /// <summary>One line: the first window with its reset countdown, up to two more windows, then the state.</summary>
-    internal static string BuildTooltip(PollStatus status, DateTimeOffset now, bool showInactiveWindows = false)
+    /// <summary>
+    /// One line: the first window with its reset countdown, up to two more windows, then the state. An account
+    /// started with <c>--claude-dir</c> is named after the app: "Claude usage (Work): …".
+    /// </summary>
+    internal static string BuildTooltip(PollStatus status, DateTimeOffset now, bool showInactiveWindows = false, string? accountLabel = null)
     {
+        var name = accountLabel is null ? string.Empty : " (" + accountLabel + ")";
         string text;
         if (status.Snapshot is { } snapshot && snapshot.VisibleWindows(showInactiveWindows) is { Count: > 0 } windows)
         {
             var parts = windows.Take(3).Select((window, index) => index == 0
                 ? UsageSnapshotFormatter.DescribeWindow(window, now)
                 : string.Create(CultureInfo.InvariantCulture, $"{window.DisplayName} {Math.Round(window.UtilizationPercent)}%"));
-            text = "Claude usage: " + string.Join(" · ", parts) + Suffix(status.State);
+            text = "Claude usage" + name + ": " + string.Join(" · ", parts) + Suffix(status.State);
         }
         else
         {
-            text = "Claude Usage Tray: " + (status.Message ?? "no data yet");
+            text = "Claude Usage Tray" + name + ": " + (status.Message ?? "no data yet");
         }
 
         return text.Length <= TooltipLimit ? text : text[..(TooltipLimit - 1)] + "…";
@@ -150,7 +158,18 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
     {
         _poller.StatusChanged -= OnStatusChanged;
         _settings.Changed -= OnSettingsChanged;
+        _account.PropertyChanged -= OnAccountChanged;
     }
+
+    /// <summary>The title a notification from this icon carries: "Claude usage · Work" for a non-default account.</summary>
+    public string NotificationTitle(string title) => _account.Decorate(title);
+
+    /// <summary>The letter that tells a second account's icon apart ("W" for Work); null for the default account.</summary>
+    public string? Badge => _account.Badge;
+
+    /// <summary>"Account: Work\nClaude home: C:\…\n\n" for a non-default account; empty for the default one.</summary>
+    internal static string DescribeAccount(AccountIdentity account) =>
+        account.Account.ClaudeHome is { } home ? $"Account: {account.Label}\nClaude home: {home}\n\n" : string.Empty;
 
     partial void OnStartWithWindowsChanged(bool value)
     {
@@ -209,7 +228,7 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
     {
         var text = string.Create(
             CultureInfo.InvariantCulture,
-            $"Claude Usage Tray {_version}\n\nAn unofficial, open-source tray app that shows your Claude usage limits.\nNot affiliated with or endorsed by Anthropic.\n\nhttps://github.com/mlcousek/claude_trayapp\n\nLogs: {_paths.LogsDirectory}");
+            $"Claude Usage Tray {_version}\n\nAn unofficial, open-source tray app that shows your Claude usage limits.\nNot affiliated with or endorsed by Anthropic.\n\nhttps://github.com/mlcousek/claude_trayapp\n\n{DescribeAccount(_account)}Logs: {_paths.LogsDirectory}");
         MessageBox.Show(text, "About Claude Usage Tray", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
@@ -223,4 +242,10 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
     private void OnStatusChanged(object? sender, PollStatus status) => _dispatcher.BeginInvoke(() => Apply(status));
 
     private void OnSettingsChanged(object? sender, AppSettings settings) => _dispatcher.BeginInvoke(() => Apply(_poller.Status));
+
+    private void OnAccountChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) => _dispatcher.BeginInvoke(() =>
+    {
+        Tooltip = BuildTooltip(_poller.Status, _clock.GetUtcNow(), _settings.Current.ShowInactiveWindows, _account.Label);
+        OnPropertyChanged(nameof(Badge));
+    });
 }

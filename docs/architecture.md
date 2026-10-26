@@ -28,8 +28,34 @@ variables, so a run pointed at a fresh profile needs this order). Nothing is har
 | `%LOCALAPPDATA%\ClaudeTrayApp\cache.json` | Last successful snapshot. Never contains a token. |
 | `%LOCALAPPDATA%\ClaudeTrayApp\history.db` | SQLite: snapshot series per window, deduplicated usage events, JSONL scan offsets. |
 | `%LOCALAPPDATA%\ClaudeTrayApp\logs\` | Rolling daily logs, seven days, five MB each. Tokens redacted. |
-| `%APPDATA%\ClaudeTrayApp\settings.json` | User settings, hot-reloaded. |
+| `%LOCALAPPDATA%\ClaudeTrayApp\update-check.json` | When GitHub was last asked and which release was announced. Shared by every account. |
+| `%APPDATA%\ClaudeTrayApp\settings.json` | User settings, hot-reloaded. Also holds the settings every account shares (theme, update check). |
 | `%USERPROFILE%\.claude\` | Claude Code home. Read-only for this app. |
+| `...\ClaudeTrayApp\accounts\<key>\` | Under both roots: the cache, database, logs and settings of an account started with `--claude-dir`. |
+
+### Accounts
+
+One process serves one account. `AccountContext` (Core) is parsed from the command line before the logger exists,
+because it decides where the log goes. Without `--claude-dir` (or with the default home itself) the process is the
+default account and every path and name is what a single-account install always used. With `--claude-dir <home>` the
+process reads that home (credentials, `.claude.json`, `projects\`), passes it to the CLI refresh nudge as
+`CLAUDE_CONFIG_DIR`, and names everything it owns after a key: the folder name as a slug plus eight hex digits of a
+SHA-256 of the full path, so two homes called `.claude-work` never collide. Unusable arguments end the process with
+code 2 and a message; they never fall back to the default account. `AccountLabel` picks the name shown for a
+non-default account: `--label`, else the organisation name from `.claude.json` unless it contains `@` (personal
+organisations are named after the email, which the mask must keep hidden), else the folder name.
+
+```mermaid
+flowchart LR
+    ARGS["command line<br/>--claude-dir, --label"] --> CTX["AccountContext<br/>IsDefault, ClaudeHome, Key"]
+    ENV["CLAUDE_CONFIG_DIR<br/>(default account only)"] --> PATHS
+    CTX --> PATHS["AppPaths"]
+    PATHS --> HOME["Claude home<br/>read-only"]
+    PATHS --> DATA["LocalRoot / RoamingRoot<br/>default: ClaudeTrayApp\<br/>other: ClaudeTrayApp\accounts\key\"]
+    PATHS --> SHARED["shared: root settings.json<br/>(theme, update check),<br/>update-check.json"]
+    CTX --> NAMES["mutex, activation event,<br/>Run value, default marker<br/>suffixed with .key"]
+    CTX --> ID["AccountIdentity<br/>label, icon mark"]
+```
 
 ## Diagrams
 
@@ -231,7 +257,12 @@ cover at least 5 % of the period.
 `SettingsStore` (Core) owns `%APPDATA%\ClaudeTrayApp\settings.json`. It writes the defaults on first run so the
 file is there to edit, saves atomically (temp file plus move), normalises every value on the way in (the poll floor,
 retention bounds, sorted thresholds), and reloads on external edits through a debounced `FileSystemWatcher`,
-ignoring the echo of its own writes. A file that does not parse is left untouched and reported through
+ignoring the echo of its own writes (but not the same text written back later by another process). `Update` reads
+the file again before applying a change, because the root file is shared by every account's process. A
+non-default account has two stores: its own file, opened with `excludeGlobals` so it neither writes nor honours
+`theme` and `checkForUpdates`, and the root file, registered as the keyed service `"global"`. `SettingsCoordinator`
+(theme), `UpdateCheckService` and `SettingsViewModel` (theme and update controls) use the global one; for the default
+account both registrations are the same store. A file that does not parse is left untouched and reported through
 `LastError`; the previous settings stay in force. `SettingsCoordinator` (app) applies the current settings once at
 start and then every change: `UsagePoller.UpdateOptions` re-times a wait in progress from the last attempt (a
 backoff keeps its plan), `HistoryOptions` and the scanner's age cutoff follow the retention, `PricingProvider`
@@ -245,8 +276,12 @@ are crossed at once. `TrayIconViewModel` evaluates it on every fresh snapshot an
 notification through the tray icon.
 
 `AutostartManager` reads and writes the per-user `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` value
-for the running executable; it is not in settings.json because the registry is the truth. `SingleInstance` holds a
-named mutex; a second launch signals a named event and exits, and the first instance shows its flyout.
+for the running executable; it is not in settings.json because the registry is the truth. A non-default account has
+its own value, `ClaudeUsageTray.<key>`, whose command carries `--claude-dir` (and `--label` when it was given), and
+its own once-only marker under `HKCU\Software\ClaudeUsageTray\Accounts\<key>`. `SingleInstance` holds a named mutex
+per account; a second launch of the same account signals that account's named event and exits, and the first
+instance shows its flyout. While the default account's mutex exists, a non-default instance leaves the weekly update
+check to it, so one release is announced once.
 
 ## Threading
 
@@ -258,4 +293,8 @@ inherits the dispatcher context, and view models marshal `StatusChanged` to the 
 
 `UsagePoller.StatusChanged` (background thread) → `TrayIconViewModel.Apply` on the dispatcher → `TrayIconState`
 (percent, status, stale) and tooltip → `TrayIconController.Redraw` → `TrayIconRenderer.Render` at the system DPI
-pixel size → `IconConverter.ToIcon` → `TaskbarIcon.Icon`. Theme and display changes re-enter at `Redraw`.
+pixel size → `IconConverter.ToIcon` → `TaskbarIcon.Icon`. Theme and display changes re-enter at `Redraw`. A
+non-default account renders with a `badge`: the label's capital first letter in the numeral's colour, at 0.36 of the
+icon size, its ink flush with the bottom-right corner and below the numeral's ink. The ring and arc are clipped around
+the letter's outline, leaving a one-pixel transparent gap. The numeral is never moved, resized or clipped: it stays
+centred exactly as on a single-account icon.

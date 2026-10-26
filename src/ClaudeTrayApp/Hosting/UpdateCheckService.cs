@@ -35,7 +35,13 @@ internal sealed class UpdateCheckService : BackgroundService
     private readonly Dispatcher _dispatcher;
     private readonly TimeProvider _clock;
     private readonly ILogger<UpdateCheckService> _logger;
+    private readonly Func<bool>? _defaultAccountRunning;
 
+    /// <param name="settings">The store holding <c>checkForUpdates</c>: the shared root settings for every account.</param>
+    /// <param name="defaultAccountRunning">
+    /// Set for an account started with <c>--claude-dir</c>: while the default account runs, it does the checking, so
+    /// two instances never announce one release twice. Null for the default account, which always checks.
+    /// </param>
     public UpdateCheckService(
         UpdateChecker checker,
         UpdateCheckStateStore state,
@@ -44,7 +50,8 @@ internal sealed class UpdateCheckService : BackgroundService
         IServiceProvider services,
         Dispatcher dispatcher,
         TimeProvider clock,
-        ILogger<UpdateCheckService> logger)
+        ILogger<UpdateCheckService> logger,
+        Func<bool>? defaultAccountRunning = null)
     {
         _checker = checker;
         _state = state;
@@ -54,6 +61,7 @@ internal sealed class UpdateCheckService : BackgroundService
         _dispatcher = dispatcher;
         _clock = clock;
         _logger = logger;
+        _defaultAccountRunning = defaultAccountRunning;
     }
 
     /// <summary>"Claude Usage Tray 0.2.0 is available. You are on 0.1.1."</summary>
@@ -87,6 +95,12 @@ internal sealed class UpdateCheckService : BackgroundService
     {
         if (!_settings.Current.CheckForUpdates)
         {
+            return;
+        }
+
+        if (_defaultAccountRunning?.Invoke() == true)
+        {
+            _logger.LogDebug("Update check left to the default account's instance");
             return;
         }
 
