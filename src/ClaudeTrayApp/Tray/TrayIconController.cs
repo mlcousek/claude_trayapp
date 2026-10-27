@@ -37,6 +37,11 @@ public sealed class TrayIconController : IDisposable
             MenuActivation = PopupActivationMode.RightClick,
             NoLeftClickDelay = true,
         };
+        if (viewModel.TrayIconId is { } iconId)
+        {
+            _icon.Id = iconId;
+        }
+
         AutomationProperties.SetName(_icon, viewModel.NotificationTitle("Claude Usage Tray"));
 
         _icon.TrayLeftMouseUp += OnTrayLeftMouseUp;
@@ -111,7 +116,8 @@ public sealed class TrayIconController : IDisposable
         try
         {
             _lastSize = IconPixelSize();
-            var bitmap = TrayIconRenderer.Render(_viewModel.IconState, _lastSize, _theme.GetTrayPalette(), _viewModel.Badge);
+            var palette = _viewModel.Badge is null ? _theme.GetTrayPalette() : _theme.GetTrayPalette().ForSecondAccount();
+            var bitmap = TrayIconRenderer.Render(_viewModel.IconState, _lastSize, palette, _viewModel.Badge);
             var previous = _icon.Icon;
             _icon.Icon = IconConverter.ToIcon(bitmap);
             previous?.Dispose();

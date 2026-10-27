@@ -40,6 +40,14 @@ public sealed class AccountContext
     public string? LabelArgument { get; }
 
     /// <summary>
+    /// A fixed notification-area icon id for a non-default account, null for the default one. Windows keys a tray icon
+    /// by the exe path plus this id, and every account runs the same exe, so without a distinct id the accounts replace
+    /// each other's icon. The default account keeps the library's own id, so its existing taskbar setting survives.
+    /// </summary>
+    public Guid? TrayIconId =>
+        Key is null ? null : new Guid(SHA256.HashData(Encoding.UTF8.GetBytes("ClaudeUsageTray.TrayIcon." + Key)).AsSpan(0, 16));
+
+    /// <summary>
     /// Reads <c>--claude-dir</c> and <c>--label</c> from the command line. Other arguments are left to their own
     /// parsers. Returns false with a user-facing reason when the arguments are unusable; the caller must not fall back
     /// to the default account then.

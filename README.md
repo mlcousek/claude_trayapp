@@ -169,8 +169,8 @@ If you keep a second Claude Code home, for example `%USERPROFILE%\.claude` for a
 ClaudeTrayApp.exe --claude-dir "C:\Users\you\.claude-work" --label "Work"
 ```
 
-- Each account gets its own tray icon. The second account's icon carries the label's first letter in its bottom-right corner (`W` for
-  Work), and its
+- Each account gets its own tray icon. The second account's icon has a yellow ring (the default account's is
+  terracotta) and carries the label's first letter in its bottom-right corner (`W` for Work), and its
   tooltip, notifications, flyout and settings window are named after the label (`Claude usage (Work): …`). Without
   `--label`, the organisation name from that account's `.claude.json` is used, or else the folder name.
 - The instance started without `--claude-dir` is the default account and looks and behaves exactly as before.

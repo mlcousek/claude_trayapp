@@ -82,6 +82,9 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
         RefreshAutostart();
     }
 
+    /// <summary>The fixed tray icon id of a non-default account; null for the default account.</summary>
+    public Guid? TrayIconId => _account.Account.TrayIconId;
+
     /// <summary>Raised when the user should see a short message: a refused refresh, a threshold crossed.</summary>
     public event EventHandler<TrayNotification>? NotificationRequested;
 
