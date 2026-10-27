@@ -22,6 +22,20 @@ public class AccountContextTests
     }
 
     [Fact]
+    public void Each_account_has_its_own_stable_tray_icon_id_and_the_default_keeps_the_libraries()
+    {
+        AccountContext.TryParse([], DefaultHome, out var defaultAccount, out _).ShouldBeTrue();
+        AccountContext.TryParse(["--claude-dir", WorkHome], DefaultHome, out var work, out _).ShouldBeTrue();
+        AccountContext.TryParse(["--claude-dir", WorkHome], DefaultHome, out var workAgain, out _).ShouldBeTrue();
+        AccountContext.TryParse(["--claude-dir", Path.Combine(Profile, ".claude-other")], DefaultHome, out var other, out _).ShouldBeTrue();
+
+        defaultAccount.TrayIconId.ShouldBeNull();
+        work.TrayIconId.ShouldNotBeNull().ShouldNotBe(Guid.Empty);
+        work.TrayIconId.ShouldBe(workAgain.TrayIconId);
+        work.TrayIconId.ShouldNotBe(other.TrayIconId);
+    }
+
+    [Fact]
     public void Unrelated_arguments_are_left_alone()
     {
         AccountContext.TryParse(["--probe", "--capture-flyout", "out.png"], DefaultHome, out var account, out _).ShouldBeTrue();

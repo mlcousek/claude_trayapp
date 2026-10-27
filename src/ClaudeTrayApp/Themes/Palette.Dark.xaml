@@ -12,6 +12,8 @@
     <Color x:Key="SuccessColor">#7BA05B</Color>
     <Color x:Key="WarnColor">#D4A24C</Color>
     <Color x:Key="DangerColor">#C1554A</Color>
+    <!-- Tray icon ring of a second account (one started with a Claude home argument): lemon yellow, apart from the amber warning. -->
+    <Color x:Key="Account2Color">#E8D44D</Color>
     <!-- Chart series, in assignment order: accent first, then a muted blue, green, amber and the secondary text tone. -->
     <Color x:Key="Chart1Color">#D97757</Color>
     <Color x:Key="Chart2Color">#6A9BCC</Color>

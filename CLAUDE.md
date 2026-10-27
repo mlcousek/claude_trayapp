@@ -63,7 +63,10 @@ published only by the release workflow.
   global: they live in the root settings.json (keyed `SettingsStore` `"global"`); the account's own file excludes
   them. A non-default account's icon carries the label's capital first letter, small, in its bottom-right corner (the
   numeral always stays centred and full size; only the ring is cut around the letter) and its texts carry the label
-  (`AccountIdentity`).
+  (`AccountIdentity`). Its healthy ring is yellow (`Account2Color`, `TrayPalette.ForSecondAccount`); amber and red are
+  unchanged. Every account runs the same exe, and Windows keys a tray icon by exe path plus icon id, so a non-default
+  account sets a fixed `TaskbarIcon.Id` from its key (`AccountContext.TrayIconId`); without it the instances replace
+  each other's icon.
 - Dependency direction is one way: `ClaudeTrayApp` references `ClaudeTrayApp.Core`. Core never references WPF; `CoreArchitectureTests` fails the build if it does.
 
 ## Hard rules

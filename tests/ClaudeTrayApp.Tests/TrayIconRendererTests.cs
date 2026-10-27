@@ -57,6 +57,22 @@ public class TrayIconRendererTests
     }
 
     [Fact]
+    public void A_second_accounts_healthy_arc_is_yellow_and_warnings_keep_their_colours()
+    {
+        var palette = Palette with { Account2 = Color.FromRgb(0xE8, 0xD4, 0x4D) };
+
+        var healthy = StaThread.Run(() => TrayIconRenderer.Render(new TrayIconState(45, UsageWindowStatus.Ok, false), 32, palette.ForSecondAccount()));
+        var top = Pixel(healthy, 16, 2);
+        top.R.ShouldBeGreaterThan((byte)200);
+        top.G.ShouldBeGreaterThan((byte)180);
+        top.B.ShouldBeLessThan((byte)120);
+
+        palette.ForSecondAccount().Warn.ShouldBe(palette.Warn);
+        palette.ForSecondAccount().Danger.ShouldBe(palette.Danger);
+        Palette.ForSecondAccount().ShouldBe(Palette);
+    }
+
+    [Fact]
     public void Critical_windows_draw_a_red_arc()
     {
         var top = Pixel(Render(new TrayIconState(93, UsageWindowStatus.Critical, false)), 16, 2);

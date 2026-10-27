@@ -22,6 +22,17 @@ All notable changes to this project are documented here. The format follows
 - A shared setting switched back by another instance (for example the theme changed and then restored) could be
   ignored, because the file then held exactly what this instance had last written itself.
 
+### Fixed
+
+- With two accounts running, only one tray icon showed: both instances run the same executable and used the same
+  notification-area icon id, so each new instance took over the other's icon. A non-default account now has a fixed
+  icon id of its own, derived from its Claude home.
+
+### Changed
+
+- A second account's tray ring is yellow while healthy (the default account keeps the terracotta), so the two icons
+  can be told apart at a glance. Amber and red still take over as a window fills.
+
 ## [0.1.6] - 2026-09-24
 
 ### Fixed
