@@ -127,12 +127,14 @@ published only by the release workflow.
   scaling; the log's `Flyout placed ... WxH px` lines show it (width must be 352 times the scale).
 - Single-file publish runs the IL3000 family of analysers with warnings as errors: `Assembly.Location` is empty in a single-file app and fails the publish. Use `Environment.ProcessPath` or `AppContext.BaseDirectory`.
 - Several accounts: each running account polls the usage endpoint with its own token. Whether throttling is per token
-  or per IP is unverified (a few minutes of two instances side by side on 2026-10-26 saw no 429). `CLAUDE_CONFIG_DIR=X` on the default
-  instance plus `--claude-dir X` on another gives two instances for one account; accepted, the variable keeps its old
-  meaning. Windows may share the "show in taskbar" choice between the icons because they come from one exe. Moving a
-  Claude home changes its key, so its history and settings start fresh. The root settings.json is written by every
-  account's process: `SettingsStore.Update` re-reads it first, and a reload no longer skips text that merely equals
-  this store's own last write.
+  or per IP is unverified (a few minutes of two instances side by side on 2026-10-26 saw no 429). An explicit
+  `--claude-dir` always wins over `CLAUDE_CONFIG_DIR`: it is the default account only when it names the home the
+  default account reads, and `--claude-dir %USERPROFILE%\.claude` with the variable set elsewhere is its own account
+  (the refresh nudge then removes the inherited variable). Windows may share the "show in taskbar" choice between the
+  icons because they come from one exe. Moving a Claude home changes its key, so its history and settings start
+  fresh. The root settings.json is written by every account's process: every write and `Update`'s read-change-write
+  hold a named mutex per file, each write has its own temp name, and a reload no longer skips text that merely
+  equals this store's own last write. The update check holds `update-check.lock` from loading its state to saving it.
 - `Environment.GetFolderPath` ignores the `LOCALAPPDATA`, `APPDATA` and `USERPROFILE` variables (it asks the shell). `AppPaths.FromEnvironment` reads the variables first when they hold rooted paths, so a run can be pointed at a fresh profile for testing; that is how the not-signed-in, expired-token and offline states were verified against the published exe.
 
 ## Before you start

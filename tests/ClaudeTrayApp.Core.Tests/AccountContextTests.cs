@@ -61,6 +61,18 @@ public class AccountContextTests
     }
 
     [Fact]
+    public void An_explicit_home_wins_over_the_environment_variable()
+    {
+        // CLAUDE_CONFIG_DIR points the default account at the work home; --claude-dir asks for the profile home.
+        AccountContext.TryParse(["--claude-dir", DefaultHome], WorkHome, out var personal, out _).ShouldBeTrue();
+        AccountContext.TryParse(["--claude-dir", WorkHome], WorkHome, out var work, out _).ShouldBeTrue();
+
+        personal.IsDefault.ShouldBeFalse();
+        personal.ClaudeHome.ShouldBe(DefaultHome);
+        work.IsDefault.ShouldBeTrue();
+    }
+
+    [Fact]
     public void A_trailing_separator_is_trimmed()
     {
         AccountContext.TryParse(["--claude-dir", WorkHome + "\\"], DefaultHome, out var account, out _).ShouldBeTrue();

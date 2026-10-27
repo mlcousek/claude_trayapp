@@ -70,7 +70,7 @@ public partial class App : Application
 
         // --claude-dir picks the account before anything else, because it decides where even the log goes. Unusable
         // arguments never fall back to the default account: that would look like the other account and confuse.
-        if (!AccountContext.TryParse(e.Args, defaults.DefaultClaudeHome, out var account, out var accountError))
+        if (!AccountContext.TryParse(e.Args, defaults.ClaudeHome, out var account, out var accountError))
         {
             Directory.CreateDirectory(defaults.LogsDirectory);
             Log.Logger = BuildLogger(defaults);
@@ -404,7 +404,8 @@ public partial class App : Application
                 Dispatcher,
                 sp.GetRequiredService<TimeProvider>(),
                 sp.GetRequiredService<ILogger<UpdateCheckService>>(),
-                paths.Account.IsDefault ? null : SingleInstance.IsDefaultAccountRunning));
+                paths.Account.IsDefault ? null : SingleInstance.IsDefaultAccountRunning,
+                paths.UpdateLockFile));
         }
     }
 

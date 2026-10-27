@@ -169,6 +169,24 @@ public class AppPathsTests
     }
 
     [Fact]
+    public void The_profile_home_chosen_explicitly_ignores_the_variable_and_keeps_its_config_in_the_profile()
+    {
+        var home = Path.GetFullPath(Path.Combine("root", "home"));
+        var profileHome = Path.Combine(home, ".claude");
+        var workHome = Path.Combine(home, ".claude-work");
+        AccountContext.TryParse(["--claude-dir", profileHome], workHome, out var account, out var error).ShouldBeTrue(error);
+
+        var paths = new AppPaths(Local, Roaming, home, workHome, account);
+
+        account.IsDefault.ShouldBeFalse();
+        paths.ClaudeHome.ShouldBe(profileHome);
+        paths.ClaudeCredentialsFile.ShouldBe(Path.Combine(profileHome, ".credentials.json"));
+        paths.ClaudeConfigFile.ShouldBe(Path.Combine(home, ".claude.json"));
+        paths.ClaudeConfigDirOverride.ShouldBeNull();
+        paths.LocalRoot.ShouldBe(Path.Combine(Local, "ClaudeTrayApp", "accounts", account.Key!));
+    }
+
+    [Fact]
     public void No_writable_file_of_another_account_lies_inside_its_claude_home()
     {
         var home = Path.GetFullPath(Path.Combine("root", "home", ".claude-work"));

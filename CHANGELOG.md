@@ -12,8 +12,9 @@ All notable changes to this project are documented here. The format follows
   watch a second Claude Code home, such as `~/.claude-work`, beside the default one. Each account has its own tray
   icon, data, settings and Start with Windows entry. The second account's icon carries the label's first letter in its bottom-right corner (`W` for Work) and its texts
   carry the label, while the default account looks exactly as before. Theme and the update check are shared, and a
-  new release is announced once. Unusable arguments show a message and exit with code 2 instead of quietly starting
-  the default account. Before going back to 0.1.6 or older, switch **Start with Windows** off in every extra account:
+  new release is announced once. An explicit `--claude-dir` always wins over `CLAUDE_CONFIG_DIR`. Settings written by
+  two instances at once keep both changes. Unusable arguments show a message and exit with code 2 instead of quietly
+  starting the default account. Before going back to 0.1.6 or older, switch **Start with Windows** off in every extra account:
   an older version ignores `--claude-dir`, so that entry would start the default account again at sign-in.
 
 ### Fixed

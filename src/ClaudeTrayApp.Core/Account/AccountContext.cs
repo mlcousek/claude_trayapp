@@ -44,10 +44,15 @@ public sealed class AccountContext
     /// parsers. Returns false with a user-facing reason when the arguments are unusable; the caller must not fall back
     /// to the default account then.
     /// </summary>
-    public static bool TryParse(IReadOnlyList<string> args, string defaultClaudeHome, out AccountContext context, out string? error)
+    /// <param name="defaultAccountHome">
+    /// The home the default account reads: <c>CLAUDE_CONFIG_DIR</c> when set, <c>%USERPROFILE%\.claude</c> otherwise.
+    /// An explicit <c>--claude-dir</c> always wins over the variable: it is the default account only when it names this
+    /// very home, and any other path, <c>%USERPROFILE%\.claude</c> included, is an account of its own.
+    /// </param>
+    public static bool TryParse(IReadOnlyList<string> args, string defaultAccountHome, out AccountContext context, out string? error)
     {
         ArgumentNullException.ThrowIfNull(args);
-        ArgumentException.ThrowIfNullOrWhiteSpace(defaultClaudeHome);
+        ArgumentException.ThrowIfNullOrWhiteSpace(defaultAccountHome);
         context = Default;
 
         if (!TryReadValue(args, ClaudeDirSwitch, "a folder path", out var directory, out error)
@@ -67,7 +72,7 @@ public sealed class AccountContext
             return false;
         }
 
-        if (string.Equals(home, Normalize(defaultClaudeHome), StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(home, Normalize(defaultAccountHome), StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }

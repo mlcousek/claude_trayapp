@@ -29,6 +29,7 @@ variables, so a run pointed at a fresh profile needs this order). Nothing is har
 | `%LOCALAPPDATA%\ClaudeTrayApp\history.db` | SQLite: snapshot series per window, deduplicated usage events, JSONL scan offsets. |
 | `%LOCALAPPDATA%\ClaudeTrayApp\logs\` | Rolling daily logs, seven days, five MB each. Tokens redacted. |
 | `%LOCALAPPDATA%\ClaudeTrayApp\update-check.json` | When GitHub was last asked and which release was announced. Shared by every account. |
+| `%LOCALAPPDATA%\ClaudeTrayApp\update-check.lock` | Held open by whichever process is checking for updates, so no two check at once. |
 | `%APPDATA%\ClaudeTrayApp\settings.json` | User settings, hot-reloaded. Also holds the settings every account shares (theme, update check). |
 | `%USERPROFILE%\.claude\` | Claude Code home. Read-only for this app. |
 | `...\ClaudeTrayApp\accounts\<key>\` | Under both roots: the cache, database, logs and settings of an account started with `--claude-dir`. |
@@ -36,8 +37,11 @@ variables, so a run pointed at a fresh profile needs this order). Nothing is har
 ### Accounts
 
 One process serves one account. `AccountContext` (Core) is parsed from the command line before the logger exists,
-because it decides where the log goes. Without `--claude-dir` (or with the default home itself) the process is the
-default account and every path and name is what a single-account install always used. With `--claude-dir <home>` the
+because it decides where the log goes. Without `--claude-dir`, or with the very home the default account reads
+(`CLAUDE_CONFIG_DIR` when set, `%USERPROFILE%\.claude` otherwise), the process is the default account and every path
+and name is what a single-account install always used. Any other `--claude-dir` wins over the variable, including
+`%USERPROFILE%\.claude` while the variable points elsewhere; that one keeps its `.claude.json` in the profile and the
+refresh nudge removes the inherited variable. With `--claude-dir <home>` the
 process reads that home (credentials, `.claude.json`, `projects\`), passes it to the CLI refresh nudge as
 `CLAUDE_CONFIG_DIR`, and names everything it owns after a key: the folder name as a slug plus eight hex digits of a
 SHA-256 of the full path, so two homes called `.claude-work` never collide. Unusable arguments end the process with
@@ -257,8 +261,9 @@ cover at least 5 % of the period.
 `SettingsStore` (Core) owns `%APPDATA%\ClaudeTrayApp\settings.json`. It writes the defaults on first run so the
 file is there to edit, saves atomically (temp file plus move), normalises every value on the way in (the poll floor,
 retention bounds, sorted thresholds), and reloads on external edits through a debounced `FileSystemWatcher`,
-ignoring the echo of its own writes (but not the same text written back later by another process). `Update` reads
-the file again before applying a change, because the root file is shared by every account's process. A
+ignoring the echo of its own writes (but not the same text written back later by another process). The root file is
+shared by every account's process, so every write, and `Update`'s whole read-change-write, holds a named mutex for
+that file (`Local\ClaudeUsageTray.Settings.<hash of the path>`), and each write uses a temp file of its own. A
 non-default account has two stores: its own file, opened with `excludeGlobals` so it neither writes nor honours
 `theme` and `checkForUpdates`, and the root file, registered as the keyed service `"global"`. `SettingsCoordinator`
 (theme), `UpdateCheckService` and `SettingsViewModel` (theme and update controls) use the global one; for the default
@@ -281,7 +286,8 @@ its own value, `ClaudeUsageTray.<key>`, whose command carries `--claude-dir` (an
 its own once-only marker under `HKCU\Software\ClaudeUsageTray\Accounts\<key>`. `SingleInstance` holds a named mutex
 per account; a second launch of the same account signals that account's named event and exits, and the first
 instance shows its flyout. While the default account's mutex exists, a non-default instance leaves the weekly update
-check to it, so one release is announced once.
+check to it, and every instance holds `update-check.lock` from loading the check state to saving it, so one release
+is announced once whichever accounts are running.
 
 ## Threading
 

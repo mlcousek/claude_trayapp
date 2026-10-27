@@ -36,7 +36,10 @@ public sealed record ClaudeCliRefreshNudgeOptions
     /// <summary>Where the CLI runs and where the empty MCP config is written. Must be a folder this app owns.</summary>
     public required string WorkingDirectory { get; init; }
 
-    /// <summary>The <c>CLAUDE_CONFIG_DIR</c> this app was started with, forwarded so the CLI refreshes the file this app reads.</summary>
+    /// <summary>
+    /// The Claude home to pass as <c>CLAUDE_CONFIG_DIR</c>, so the CLI refreshes the file this app reads. Null means
+    /// the CLI's default home, and an inherited variable is then removed rather than passed on.
+    /// </summary>
     public string? ClaudeConfigDirOverride { get; init; }
 
     /// <summary>Minimum gap between two nudges, whoever asks.</summary>
@@ -128,10 +131,11 @@ public sealed class ClaudeCliRefreshNudge : ICredentialRefreshNudge, IDisposable
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(_options.ClaudeConfigDirOverride))
-        {
-            environment[AppPaths.ClaudeConfigDirVariable] = _options.ClaudeConfigDirOverride;
-        }
+        // Without an override the CLI must use its default home, whatever CLAUDE_CONFIG_DIR this process inherited: an
+        // account started with --claude-dir %USERPROFILE%\.claude reads that home even when the variable says otherwise.
+        environment[AppPaths.ClaudeConfigDirVariable] = string.IsNullOrWhiteSpace(_options.ClaudeConfigDirOverride)
+            ? null
+            : _options.ClaudeConfigDirOverride;
 
         return environment;
     }

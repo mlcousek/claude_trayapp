@@ -46,8 +46,12 @@ public sealed class AppPaths
             LocalRoot = Path.Combine(SharedLocalRoot, AccountsFolderName, key);
             RoamingRoot = Path.Combine(SharedRoamingRoot, AccountsFolderName, key);
             ClaudeHome = home;
-            ClaudeConfigFile = Path.Combine(home, ".claude.json");
-            ClaudeConfigDirOverride = home;
+
+            // %USERPROFILE%\.claude chosen explicitly while CLAUDE_CONFIG_DIR points elsewhere: Claude Code keeps that
+            // home's config beside it in the profile, and the CLI refreshes it only with the variable removed.
+            var isProfileHome = string.Equals(home, AccountContext.Normalize(DefaultClaudeHome), StringComparison.OrdinalIgnoreCase);
+            ClaudeConfigFile = isProfileHome ? Path.Combine(userProfile, ".claude.json") : Path.Combine(home, ".claude.json");
+            ClaudeConfigDirOverride = isProfileHome ? null : home;
         }
         else
         {
@@ -101,6 +105,9 @@ public sealed class AppPaths
 
     /// <summary>When the app last asked GitHub for a newer release, and which version it already mentioned. Shared by every account.</summary>
     public string UpdateStateFile => Path.Combine(SharedLocalRoot, "update-check.json");
+
+    /// <summary>Held by whichever account's process is checking for updates, so a release is never announced twice.</summary>
+    public string UpdateLockFile => Path.Combine(SharedLocalRoot, "update-check.lock");
 
     /// <summary>This account's settings. For the default account it is also <see cref="GlobalSettingsFile"/>.</summary>
     public string SettingsFile => Path.Combine(RoamingRoot, "settings.json");

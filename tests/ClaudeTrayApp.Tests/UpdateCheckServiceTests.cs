@@ -169,6 +169,37 @@ public sealed class UpdateCheckServiceTests : IDisposable
     }
 
     [Fact]
+    public void Nothing_is_asked_while_another_instance_holds_the_check()
+    {
+        var lockFile = Path.Combine(_directory, "update-check.lock");
+        var github = Answering(HttpStatusCode.OK, Latest("v0.2.0"));
+
+        using (UpdateCheckLock.TryAcquire(lockFile).ShouldNotBeNull())
+        {
+            RunOnce(github, lockFile: lockFile).ShouldBe(0);
+        }
+
+        github.Calls.ShouldBe(0);
+        _state.Load().ShouldBe(UpdateCheckState.Empty);
+    }
+
+    [Fact]
+    public void An_instance_behind_the_lock_finds_the_release_already_announced()
+    {
+        // Two non-default accounts with no default running: the second checks after the first released the lock.
+        var lockFile = Path.Combine(_directory, "update-check.lock");
+        var github = Answering(HttpStatusCode.OK, Latest("v0.2.0"));
+
+        var first = RunOnce(github, defaultAccountRunning: () => false, lockFile: lockFile);
+        var second = RunOnce(github, defaultAccountRunning: () => false, lockFile: lockFile);
+
+        first.ShouldBe(1);
+        second.ShouldBe(0);
+        github.Calls.ShouldBe(1);
+        UpdateCheckLock.TryAcquire(lockFile).ShouldNotBeNull().Dispose();
+    }
+
+    [Fact]
     public void The_announcement_names_both_versions() =>
         UpdateCheckService.FormatAvailable(new ReleaseInfo(new Version(0, 2, 0), "v0.2.0", "https://example.invalid"), new Version(0, 1, 1))
             .ShouldBe("Claude Usage Tray 0.2.0 is available. You are on 0.1.1.");
@@ -180,7 +211,7 @@ public sealed class UpdateCheckServiceTests : IDisposable
         new(_ => new HttpResponseMessage(status) { Content = new StringContent(body) });
 
     /// <summary>Runs one evaluation on an STA thread, pumps its dispatcher, and returns how many announcements were made.</summary>
-    private int RunOnce(StubHandler github, Func<bool>? defaultAccountRunning = null) => StaThread.Run(() =>
+    private int RunOnce(StubHandler github, Func<bool>? defaultAccountRunning = null, string? lockFile = null) => StaThread.Run(() =>
     {
         using var http = new HttpClient(github);
         var checker = new UpdateChecker(http, "0.1.1", NullLogger<UpdateChecker>.Instance);
@@ -194,7 +225,8 @@ public sealed class UpdateCheckServiceTests : IDisposable
             Dispatcher.CurrentDispatcher,
             _clock,
             NullLogger<UpdateCheckService>.Instance,
-            defaultAccountRunning);
+            defaultAccountRunning,
+            lockFile);
 
         service.RunOnceAsync(CancellationToken.None).GetAwaiter().GetResult();
         PumpDispatcher();

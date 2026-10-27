@@ -179,6 +179,37 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task Two_stores_updating_one_file_at_once_keep_each_others_edits()
+    {
+        // Two account processes sharing the root settings.json: one keeps changing the theme, the other the poll interval.
+        using var first = Create();
+        using var second = Create();
+        first.Load();
+        second.Load();
+        var themes = new[] { ThemeSetting.Light, ThemeSetting.Dark };
+        var intervals = new[] { 600, 900 };
+
+        await Task.WhenAll(
+            Task.Run(() => { for (var i = 0; i < 40; i++) { first.Update(s => s with { Theme = themes[i % 2] }); } }, TestContext.Current.CancellationToken),
+            Task.Run(() => { for (var i = 0; i < 40; i++) { second.Update(s => s with { PollIntervalSeconds = intervals[i % 2] }); } }, TestContext.Current.CancellationToken));
+
+        using var reader = Create();
+        var settings = reader.Load();
+        settings.Theme.ShouldBe(ThemeSetting.Dark);
+        settings.PollIntervalSeconds.ShouldBe(900);
+        Directory.GetFiles(_directory, "*.tmp").ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Each_settings_file_has_one_lock_name_whatever_its_spelling()
+    {
+        SettingsStore.MutexNameFor(@"C:\Users\Me\AppData\Roaming\ClaudeTrayApp\settings.json")
+            .ShouldBe(SettingsStore.MutexNameFor(@"c:\users\me\appdata\roaming\claudetrayapp\SETTINGS.JSON"));
+        SettingsStore.MutexNameFor(@"C:\a\settings.json").ShouldNotBe(SettingsStore.MutexNameFor(@"C:\b\settings.json"));
+        SettingsStore.MutexNameFor(@"C:\a\settings.json").ShouldStartWith(@"Local\ClaudeUsageTray.Settings.");
+    }
+
+    [Fact]
     public void A_store_that_excludes_globals_neither_writes_nor_honours_them()
     {
         using var store = Create(excludeGlobals: true);

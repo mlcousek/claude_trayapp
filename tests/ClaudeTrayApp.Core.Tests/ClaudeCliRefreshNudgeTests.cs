@@ -92,13 +92,17 @@ public sealed class ClaudeCliRefreshNudgeTests : IDisposable
     }
 
     [Fact]
-    public async Task Does_not_forward_a_config_dir_that_was_never_set()
+    public async Task Without_an_override_an_inherited_config_dir_is_removed()
     {
-        using var nudge = Create(FakeCliLocator.Native(), new ScriptedCredentialSource(ScriptedCredentialSource.ExpiredAt(Expired)), environmentNames: ["PATH"]);
+        // An account started with --claude-dir %USERPROFILE%\.claude while CLAUDE_CONFIG_DIR points elsewhere: the CLI
+        // must refresh its default home, not the one the variable names.
+        using var nudge = Create(FakeCliLocator.Native(), new ScriptedCredentialSource(ScriptedCredentialSource.ExpiredAt(Expired)), environmentNames: ["PATH", "CLAUDE_CONFIG_DIR"]);
 
         await nudge.TryRefreshAsync(TestContext.Current.CancellationToken);
 
-        _runner.Runs.ShouldHaveSingleItem().Request.Environment.ShouldBeEmpty();
+        var environment = _runner.Runs.ShouldHaveSingleItem().Request.Environment;
+        environment.Keys.ShouldBe(["CLAUDE_CONFIG_DIR"]);
+        environment["CLAUDE_CONFIG_DIR"].ShouldBeNull();
     }
 
     [Fact]
