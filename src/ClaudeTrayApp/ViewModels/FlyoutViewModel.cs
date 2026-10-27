@@ -35,6 +35,7 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
     private readonly SettingsStore _settings;
     private readonly PricingProvider _pricing;
     private readonly Action _openSettings;
+    private readonly AccountIdentity _identity;
     private bool _showLocalAnalytics;
     private bool _showExtraUsage;
     private bool _showInactiveWindows;
@@ -54,6 +55,12 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private bool _hasAccount;
+
+    [ObservableProperty]
+    private string _accountLabelText = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasAccountLabel;
 
     [ObservableProperty]
     private bool _hasEmail;
@@ -158,8 +165,10 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
         TimeProvider clock,
         Dispatcher dispatcher,
         Action openSettings,
-        ILogger<FlyoutViewModel> logger)
+        ILogger<FlyoutViewModel> logger,
+        AccountIdentity? identity = null)
     {
+        _identity = identity ?? AccountIdentity.Default;
         _poller = poller;
         _accountSource = accountSource;
         _analytics = analytics;
@@ -587,8 +596,15 @@ public sealed partial class FlyoutViewModel : ObservableObject, IDisposable
             HasEmail = false;
             AccountText = string.Empty;
             HasAccount = false;
+            AccountLabelText = string.Empty;
+            HasAccountLabel = false;
             return;
         }
+
+        // The label of an account started with --claude-dir; its organisation is only known once the account is read.
+        _identity.Update(_account.IsEmpty ? null : _account);
+        AccountLabelText = _identity.Label ?? string.Empty;
+        HasAccountLabel = AccountLabelText.Length > 0;
 
         HasEmail = _account.Email is not null;
         AccountText = _account.Email is { } email

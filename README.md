@@ -96,7 +96,8 @@ There is no installer, so removing it is three steps, all optional except the fi
 2. Delete the `ClaudeUsageTray` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (the startup
    entry, present unless you turned it off), and the `HKCU\Software\ClaudeUsageTray` key, which holds one flag
    recording that the entry has been created once. Switching **Start with Windows** off in the app removes
-   the first but deliberately keeps the second, so it is not created again.
+   the first but deliberately keeps the second, so it is not created again. A second account started with
+   `--claude-dir` has its own `ClaudeUsageTray.<key>` value and its own flag under `HKCU\Software\ClaudeUsageTray\Accounts`.
 3. To remove the data the app kept about your own usage, delete `%LOCALAPPDATA%\ClaudeTrayApp` (cache, history
    database, logs) and `%APPDATA%\ClaudeTrayApp` (settings). Nothing outside those two folders and the two
    registry values above is ever written, and
@@ -157,7 +158,29 @@ switched off at the top of the Settings window or from the tray menu, never need
 first launch creates it and records that under `HKCU\Software\ClaudeUsageTray`, so it is offered once: turn it off and it
 stays off.
 
-Only one instance runs per session. Launching the app again opens the running instance's flyout and exits.
+Only one instance runs per account per session. Launching the app again opens the running instance's flyout and exits.
+
+## More than one Claude account
+
+If you keep a second Claude Code home, for example `%USERPROFILE%\.claude` for a personal account and
+`%USERPROFILE%\.claude-work` for a company one, run a second instance pointed at it:
+
+```bash
+ClaudeTrayApp.exe --claude-dir "C:\Users\you\.claude-work" --label "Work"
+```
+
+- Each account gets its own tray icon. The second account's icon carries the label's first letter in its bottom-right corner (`W` for
+  Work), and its
+  tooltip, notifications, flyout and settings window are named after the label (`Claude usage (Work): …`). Without
+  `--label`, the organisation name from that account's `.claude.json` is used, or else the folder name.
+- The instance started without `--claude-dir` is the default account and looks and behaves exactly as before.
+- Each account has its own cache, history, logs and settings, under `accounts\<key>` in `%LOCALAPPDATA%\ClaudeTrayApp`
+  and `%APPDATA%\ClaudeTrayApp`. The theme and the update check are shared by every account and stay in the main
+  `settings.json`.
+- The first launch of the second account turns on its own **Start with Windows** entry, with the same arguments, so
+  launching it once from a shortcut or a terminal is the whole setup. Switching it off there affects only that account.
+- An expired token is renewed the same way as for the default account, with the Claude Code CLI pointed at that home.
+- The app never writes to either Claude home.
 
 ## How the data sources work, and their limits
 
@@ -182,7 +205,8 @@ The full probed schemas and the rules derived from them are in [docs/data-source
 - The OAuth token is read from Claude Code's credential file, kept in memory, redacted from logs and never written
   anywhere by this app.
 - The app writes only to `%LOCALAPPDATA%\ClaudeTrayApp` (cache, history database, logs) and
-  `%APPDATA%\ClaudeTrayApp\settings.json`. It never modifies anything under `~/.claude`.
+  `%APPDATA%\ClaudeTrayApp\settings.json` (and their `accounts\<key>` subfolders for a second account). It never
+  modifies anything under `~/.claude` or any other Claude home given with `--claude-dir`.
 - Your account email is masked in the flyout by default.
 
 ## Troubleshooting

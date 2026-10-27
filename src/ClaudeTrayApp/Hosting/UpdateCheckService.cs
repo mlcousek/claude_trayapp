@@ -35,7 +35,18 @@ internal sealed class UpdateCheckService : BackgroundService
     private readonly Dispatcher _dispatcher;
     private readonly TimeProvider _clock;
     private readonly ILogger<UpdateCheckService> _logger;
+    private readonly Func<bool>? _defaultAccountRunning;
+    private readonly string? _lockFile;
 
+    /// <param name="settings">The store holding <c>checkForUpdates</c>: the shared root settings for every account.</param>
+    /// <param name="defaultAccountRunning">
+    /// Set for an account started with <c>--claude-dir</c>: while the default account runs, it does the checking.
+    /// Null for the default account, which always checks.
+    /// </param>
+    /// <param name="lockFile">
+    /// The lock every account's process takes from reading the check state to saving it (<see cref="UpdateCheckLock"/>),
+    /// so two instances never check at once and announce one release twice. Null skips it (tests).
+    /// </param>
     public UpdateCheckService(
         UpdateChecker checker,
         UpdateCheckStateStore state,
@@ -44,7 +55,9 @@ internal sealed class UpdateCheckService : BackgroundService
         IServiceProvider services,
         Dispatcher dispatcher,
         TimeProvider clock,
-        ILogger<UpdateCheckService> logger)
+        ILogger<UpdateCheckService> logger,
+        Func<bool>? defaultAccountRunning = null,
+        string? lockFile = null)
     {
         _checker = checker;
         _state = state;
@@ -54,6 +67,8 @@ internal sealed class UpdateCheckService : BackgroundService
         _dispatcher = dispatcher;
         _clock = clock;
         _logger = logger;
+        _defaultAccountRunning = defaultAccountRunning;
+        _lockFile = lockFile;
     }
 
     /// <summary>"Claude Usage Tray 0.2.0 is available. You are on 0.1.1."</summary>
@@ -87,6 +102,20 @@ internal sealed class UpdateCheckService : BackgroundService
     {
         if (!_settings.Current.CheckForUpdates)
         {
+            return;
+        }
+
+        if (_defaultAccountRunning?.Invoke() == true)
+        {
+            _logger.LogDebug("Update check left to the default account's instance");
+            return;
+        }
+
+        // Held until the state is saved: another instance waiting behind it then finds the check no longer due.
+        using var gate = _lockFile is null ? null : UpdateCheckLock.TryAcquire(_lockFile);
+        if (_lockFile is not null && gate is null)
+        {
+            _logger.LogDebug("Another instance is checking for updates right now");
             return;
         }
 

@@ -11,11 +11,13 @@ namespace ClaudeTrayApp.Startup;
 
 /// <summary>
 /// Pushes settings into the services that cannot watch the store themselves: the poll interval, history retention,
-/// the pricing file and the theme override. View models subscribe to the store on their own.
+/// the pricing file and the theme override. View models subscribe to the store on their own. The theme comes from the
+/// shared root settings (<paramref name="globalStore"/>), which for the default account is the same store.
 /// </summary>
 public sealed class SettingsCoordinator : IDisposable
 {
     private readonly SettingsStore _store;
+    private readonly SettingsStore _global;
     private readonly UsagePoller _poller;
     private readonly HistoryOptions _historyOptions;
     private readonly HistoryRecorder _recorder;
@@ -34,9 +36,11 @@ public sealed class SettingsCoordinator : IDisposable
         PricingProvider pricing,
         ThemeManager theme,
         Dispatcher dispatcher,
-        ILogger<SettingsCoordinator> logger)
+        ILogger<SettingsCoordinator> logger,
+        SettingsStore? globalStore = null)
     {
         _store = store;
+        _global = globalStore ?? store;
         _poller = poller;
         _historyOptions = historyOptions;
         _recorder = recorder;
@@ -53,9 +57,20 @@ public sealed class SettingsCoordinator : IDisposable
         Apply(_store.Current, initial: true);
         _store.Changed += OnChanged;
         _store.StartWatching();
+        if (HasSeparateGlobals)
+        {
+            _global.Changed += OnGlobalChanged;
+            _global.StartWatching();
+        }
     }
 
-    public void Dispose() => _store.Changed -= OnChanged;
+    public void Dispose()
+    {
+        _store.Changed -= OnChanged;
+        _global.Changed -= OnGlobalChanged;
+    }
+
+    private bool HasSeparateGlobals => !ReferenceEquals(_store, _global);
 
     private static AppTheme? ToOverride(ThemeSetting theme) => theme switch
     {
@@ -65,6 +80,12 @@ public sealed class SettingsCoordinator : IDisposable
     };
 
     private void OnChanged(object? sender, AppSettings settings) => Apply(settings, initial: false);
+
+    private void OnGlobalChanged(object? sender, AppSettings settings)
+    {
+        ApplyThemeOnDispatcher(settings.Theme);
+        _logger.LogInformation("Shared settings applied: theme {Theme}", settings.Theme);
+    }
 
     private void Apply(AppSettings settings, bool initial)
     {
@@ -88,14 +109,10 @@ public sealed class SettingsCoordinator : IDisposable
             _pricing.Reload(settings.PricingFilePath);
         }
 
-        var themeOverride = ToOverride(settings.Theme);
-        if (_dispatcher.CheckAccess())
+        var theme = HasSeparateGlobals ? _global.Current.Theme : settings.Theme;
+        if (initial || !HasSeparateGlobals)
         {
-            ApplyTheme(themeOverride);
-        }
-        else
-        {
-            _dispatcher.BeginInvoke(() => ApplyTheme(themeOverride));
+            ApplyThemeOnDispatcher(theme);
         }
 
         if (!initial)
@@ -105,8 +122,21 @@ public sealed class SettingsCoordinator : IDisposable
                 settings.PollIntervalSeconds,
                 settings.TrayWindow,
                 settings.HistoryRetentionDays,
-                settings.Theme,
+                theme,
                 settings.Notifications.Enabled ? string.Join("/", settings.Notifications.Thresholds) + "%" : "off");
+        }
+    }
+
+    private void ApplyThemeOnDispatcher(ThemeSetting theme)
+    {
+        var themeOverride = ToOverride(theme);
+        if (_dispatcher.CheckAccess())
+        {
+            ApplyTheme(themeOverride);
+        }
+        else
+        {
+            _dispatcher.BeginInvoke(() => ApplyTheme(themeOverride));
         }
     }
 

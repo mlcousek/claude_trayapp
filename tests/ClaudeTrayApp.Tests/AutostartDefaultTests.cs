@@ -71,6 +71,22 @@ public class AutostartDefaultTests
         entry.Enabled.ShouldBeTrue();
     }
 
+    [Fact]
+    public void Each_account_gets_its_own_first_run_default()
+    {
+        // Each account's entry has its own Run value and marker; the user switched the default account off long ago.
+        var personal = new FakeAutostartEntry();
+        Apply(personal);
+        personal.TrySet(false, out _);
+        var work = new FakeAutostartEntry();
+
+        Apply(work).ShouldBe(AutostartDefaultOutcome.Enabled);
+        Apply(personal).ShouldBe(AutostartDefaultOutcome.AlreadyDecided);
+
+        work.Enabled.ShouldBeTrue();
+        personal.Enabled.ShouldBeFalse();
+    }
+
     private static AutostartDefaultOutcome Apply(IAutostartEntry entry) =>
         new AutostartDefault(entry, NullLogger<AutostartDefault>.Instance).Apply();
 

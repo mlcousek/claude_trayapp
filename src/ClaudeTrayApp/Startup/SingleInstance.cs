@@ -1,8 +1,11 @@
+using ClaudeTrayApp.Core.Account;
+
 namespace ClaudeTrayApp.Startup;
 
 /// <summary>
-/// One instance per session: a named mutex says whether another instance runs, and a named event lets a second
-/// launch ask the first one to show its flyout before exiting.
+/// One instance per account per session: a named mutex says whether another instance runs, and a named event lets a
+/// second launch ask the first one to show its flyout before exiting. The default account keeps the original names;
+/// an account started with <c>--claude-dir</c> appends its key, so accounts run side by side.
 /// </summary>
 public sealed class SingleInstance : IDisposable
 {
@@ -23,10 +26,32 @@ public sealed class SingleInstance : IDisposable
     /// Claims the instance. Returns false when another instance already holds it; that instance has then been asked
     /// to show its flyout and the caller should exit.
     /// </summary>
-    public static bool TryAcquire(out SingleInstance? instance) => TryAcquire(MutexName, ActivationEventName, out instance);
+    public static bool TryAcquire(AccountContext account, out SingleInstance? instance)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+        return TryAcquire(MutexNameFor(account.Key), ActivationEventNameFor(account.Key), out instance);
+    }
+
+    /// <summary>Whether the default account's instance is running in this session. Opens nothing it keeps.</summary>
+    public static bool IsDefaultAccountRunning() => IsRunning(MutexName);
+
+    internal static string MutexNameFor(string? accountKey) => accountKey is null ? MutexName : MutexName + "." + accountKey;
+
+    internal static string ActivationEventNameFor(string? accountKey) => accountKey is null ? ActivationEventName : ActivationEventName + "." + accountKey;
+
+    internal static bool IsRunning(string mutexName)
+    {
+        if (!Mutex.TryOpenExisting(mutexName, out var mutex))
+        {
+            return false;
+        }
+
+        mutex.Dispose();
+        return true;
+    }
 
     /// <summary>
-    /// Same as <see cref="TryAcquire(out SingleInstance?)"/> with the mutex and activation event names injected, so
+    /// Same as <see cref="TryAcquire(AccountContext, out SingleInstance?)"/> with the mutex and activation event names injected, so
     /// tests can exercise the real named-synchronization-object behaviour under unique per-run names instead of the
     /// production ones (which a real running instance on the same machine may already hold).
     /// </summary>

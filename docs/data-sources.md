@@ -8,6 +8,10 @@ Everything the app shows comes from two sources. Both are read-only. Facts below
 ### Credential discovery
 
 - File: `%USERPROFILE%\.claude\.credentials.json`. If `CLAUDE_CONFIG_DIR` is set, use `<CLAUDE_CONFIG_DIR>\.credentials.json` instead (Claude Code honours the same variable).
+- An instance started with `--claude-dir <home>` reads `<home>\.credentials.json`, `<home>\.claude.json` and
+  `<home>\projects\` instead, whatever `CLAUDE_CONFIG_DIR` says, and passes `<home>` to the CLI refresh nudge as
+  `CLAUDE_CONFIG_DIR`. Verified 2026-10-26 against a second home (`~/.claude-work`, a Team account): the files have the
+  same shape as the default home's, and the probe succeeded with that account's token.
 - Windows Credential Manager held no Claude entries on the probed machine. Keep discovery pluggable so a keychain source can be added without touching the provider.
 - Shape (values redacted):
 

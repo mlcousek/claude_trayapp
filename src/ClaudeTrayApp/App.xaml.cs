@@ -46,6 +46,9 @@ public partial class App : Application
     /// <summary>Command-line switch followed by a PNG path: open the settings window, screenshot it and exit (development aid).</summary>
     public const string CaptureSettingsSwitch = "--capture-settings";
 
+    /// <summary>DI key of the settings store every account shares (theme, update check).</summary>
+    private const string GlobalSettingsKey = "global";
+
     private IHost? _host;
     private ThemeManager? _theme;
     private TrayIconController? _tray;
@@ -63,13 +66,36 @@ public partial class App : Application
         var renderIconsDirectory = ArgumentAfter(e.Args, RenderIconsSwitch);
         var capturing = ArgumentAfter(e.Args, CaptureFlyoutSwitch) is not null || ArgumentAfter(e.Args, CaptureSettingsSwitch) is not null;
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "unknown";
-        var paths = AppPaths.FromEnvironment();
+        var defaults = AppPaths.FromEnvironment();
+
+        // --claude-dir picks the account before anything else, because it decides where even the log goes. Unusable
+        // arguments never fall back to the default account: that would look like the other account and confuse.
+        if (!AccountContext.TryParse(e.Args, defaults.ClaudeHome, out var account, out var accountError))
+        {
+            Directory.CreateDirectory(defaults.LogsDirectory);
+            Log.Logger = BuildLogger(defaults);
+            Log.Error("Refusing to start: {Reason}", accountError);
+            Log.CloseAndFlush();
+            if (!probe)
+            {
+                MessageBox.Show(
+                    accountError + "\n\nUsage:\n" + AccountContext.Usage,
+                    "Claude Usage Tray",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+
+            Shutdown(2);
+            return;
+        }
+
+        var paths = defaults.ForAccount(account);
         Directory.CreateDirectory(paths.LogsDirectory);
         Log.Logger = BuildLogger(paths);
         RegisterCrashLogging();
 
-        // One instance per session; a second launch just asks the first to show its flyout.
-        if (!probe && renderIconsDirectory is null && !capturing && !SingleInstance.TryAcquire(out _instance))
+        // One instance per account per session; a second launch just asks the first to show its flyout.
+        if (!probe && renderIconsDirectory is null && !capturing && !SingleInstance.TryAcquire(account, out _instance))
         {
             Log.Information("Another instance is already running; asked it to show the flyout and exiting");
             Log.CloseAndFlush();
@@ -96,7 +122,11 @@ public partial class App : Application
             return;
         }
 
-        Log.Information("Claude Usage Tray {Version} started; logs in {LogsDirectory}", version, paths.LogsDirectory);
+        Log.Information(
+            "Claude Usage Tray {Version} started for {Account}; logs in {LogsDirectory}",
+            version,
+            account.Key is { } key ? "account " + key + " (" + account.ClaudeHome + ")" : "the default account",
+            paths.LogsDirectory);
 
         if (probe)
         {
@@ -208,11 +238,25 @@ public partial class App : Application
     {
         services.AddSingleton(paths);
         services.AddSingleton(TimeProvider.System);
+        services.AddSingleton(new AccountIdentity(paths.Account));
 
-        // Settings are loaded before anything that depends on them; the defaults are written on first run.
+        // Settings are loaded before anything that depends on them; the defaults are written on first run. An account
+        // started with --claude-dir has its own file, without the shared settings (theme, update check): those stay in
+        // the root file, registered under GlobalSettingsKey. For the default account both names are one store.
         services.AddSingleton(sp =>
         {
-            var store = new SettingsStore(paths.SettingsFile, sp.GetRequiredService<ILogger<SettingsStore>>());
+            var store = new SettingsStore(paths.SettingsFile, sp.GetRequiredService<ILogger<SettingsStore>>(), excludeGlobals: !paths.Account.IsDefault);
+            store.Load();
+            return store;
+        });
+        services.AddKeyedSingleton(GlobalSettingsKey, (sp, _) =>
+        {
+            if (paths.Account.IsDefault)
+            {
+                return sp.GetRequiredService<SettingsStore>();
+            }
+
+            var store = new SettingsStore(paths.GlobalSettingsFile, sp.GetRequiredService<ILogger<SettingsStore>>());
             store.Load();
             return store;
         });
@@ -278,7 +322,8 @@ public partial class App : Application
         // so the fallback is the exe next to AppContext.BaseDirectory rather than the assembly.
         services.AddSingleton(sp => new AutostartManager(
             Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "ClaudeTrayApp.exe"),
-            sp.GetRequiredService<ILogger<AutostartManager>>()));
+            sp.GetRequiredService<ILogger<AutostartManager>>(),
+            paths.Account));
         services.AddSingleton<IAutostartEntry>(sp => sp.GetRequiredService<AutostartManager>());
         services.AddSingleton(sp => new AutostartDefault(
             sp.GetRequiredService<IAutostartEntry>(),
@@ -292,7 +337,8 @@ public partial class App : Application
             sp.GetRequiredService<PricingProvider>(),
             sp.GetRequiredService<ThemeManager>(),
             Dispatcher,
-            sp.GetRequiredService<ILogger<SettingsCoordinator>>()));
+            sp.GetRequiredService<ILogger<SettingsCoordinator>>(),
+            sp.GetRequiredKeyedService<SettingsStore>(GlobalSettingsKey)));
         services.AddSingleton(sp => new SettingsWindowHost(sp));
         services.AddSingleton(sp => new SettingsViewModel(
             sp.GetRequiredService<SettingsStore>(),
@@ -304,7 +350,9 @@ public partial class App : Application
             sp.GetRequiredService<UpdateNotifier>(),
             sp.GetRequiredService<UpdateChecker>(),
             Dispatcher,
-            sp.GetRequiredService<ILogger<SettingsViewModel>>()));
+            sp.GetRequiredService<ILogger<SettingsViewModel>>(),
+            sp.GetRequiredKeyedService<SettingsStore>(GlobalSettingsKey),
+            sp.GetRequiredService<AccountIdentity>()));
         services.AddSingleton(sp => new TrayIconViewModel(
             sp.GetRequiredService<UsagePoller>(),
             paths,
@@ -316,7 +364,8 @@ public partial class App : Application
             () => sp.GetRequiredService<SettingsWindowHost>().Show(),
             () => Shutdown(0),
             version,
-            sp.GetRequiredService<ILogger<TrayIconViewModel>>()));
+            sp.GetRequiredService<ILogger<TrayIconViewModel>>(),
+            sp.GetRequiredService<AccountIdentity>()));
         services.AddSingleton<TrayIconController>();
         services.AddSingleton<IAccountInfoSource>(_ => new AccountInfoFileSource(paths.ClaudeConfigFile));
         services.AddSingleton(sp => new FlyoutViewModel(
@@ -330,7 +379,8 @@ public partial class App : Application
             sp.GetRequiredService<TimeProvider>(),
             Dispatcher,
             () => sp.GetRequiredService<SettingsWindowHost>().Show(),
-            sp.GetRequiredService<ILogger<FlyoutViewModel>>()));
+            sp.GetRequiredService<ILogger<FlyoutViewModel>>(),
+            sp.GetRequiredService<AccountIdentity>()));
         services.AddSingleton<FlyoutWindow>();
 
         if (!headless)
@@ -348,12 +398,14 @@ public partial class App : Application
             services.AddHostedService(sp => new UpdateCheckService(
                 sp.GetRequiredService<UpdateChecker>(),
                 sp.GetRequiredService<UpdateCheckStateStore>(),
-                sp.GetRequiredService<SettingsStore>(),
+                sp.GetRequiredKeyedService<SettingsStore>(GlobalSettingsKey),
                 sp.GetRequiredService<UpdateNotifier>(),
                 sp,
                 Dispatcher,
                 sp.GetRequiredService<TimeProvider>(),
-                sp.GetRequiredService<ILogger<UpdateCheckService>>()));
+                sp.GetRequiredService<ILogger<UpdateCheckService>>(),
+                paths.Account.IsDefault ? null : SingleInstance.IsDefaultAccountRunning,
+                paths.UpdateLockFile));
         }
     }
 

@@ -98,4 +98,61 @@ public class SingleInstanceTests
         second.ShouldNotBeNull();
         second!.Dispose();
     }
+
+    [Fact]
+    public void The_default_account_keeps_the_original_names_and_others_append_their_key()
+    {
+        SingleInstance.MutexNameFor(null).ShouldBe(@"Local\ClaudeUsageTray.Instance");
+        SingleInstance.ActivationEventNameFor(null).ShouldBe(@"Local\ClaudeUsageTray.ShowFlyout");
+        SingleInstance.MutexNameFor("claude-work-3f9a1c07").ShouldBe(@"Local\ClaudeUsageTray.Instance.claude-work-3f9a1c07");
+        SingleInstance.ActivationEventNameFor("claude-work-3f9a1c07").ShouldBe(@"Local\ClaudeUsageTray.ShowFlyout.claude-work-3f9a1c07");
+    }
+
+    [Fact]
+    public void Two_accounts_run_side_by_side_and_each_relaunch_signals_only_its_own()
+    {
+        var (prefix, _) = UniqueNames();
+        var personal = (Mutex: prefix + ".personal", Activation: prefix + ".personal.Activate");
+        var work = (Mutex: prefix + ".work", Activation: prefix + ".work.Activate");
+
+        SingleInstance.TryAcquire(personal.Mutex, personal.Activation, out var first).ShouldBeTrue();
+        SingleInstance.TryAcquire(work.Mutex, work.Activation, out var second).ShouldBeTrue();
+        try
+        {
+            using var personalActivated = new ManualResetEventSlim(false);
+            using var workActivated = new ManualResetEventSlim(false);
+            first!.ListenForActivation(personalActivated.Set);
+            second!.ListenForActivation(workActivated.Set);
+
+            SingleInstance.TryAcquire(work.Mutex, work.Activation, out _).ShouldBeFalse();
+
+            workActivated.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken).ShouldBeTrue();
+            personalActivated.Wait(TimeSpan.FromMilliseconds(300), TestContext.Current.CancellationToken).ShouldBeFalse();
+        }
+        finally
+        {
+            first?.Dispose();
+            second?.Dispose();
+        }
+    }
+
+    [Fact]
+    public void IsRunning_reports_a_held_mutex_without_taking_it()
+    {
+        var (mutexName, eventName) = UniqueNames();
+
+        SingleInstance.IsRunning(mutexName).ShouldBeFalse();
+        SingleInstance.TryAcquire(mutexName, eventName, out var first).ShouldBeTrue();
+        try
+        {
+            SingleInstance.IsRunning(mutexName).ShouldBeTrue();
+            SingleInstance.IsRunning(mutexName).ShouldBeTrue();
+        }
+        finally
+        {
+            first!.Dispose();
+        }
+
+        SingleInstance.IsRunning(mutexName).ShouldBeFalse();
+    }
 }
