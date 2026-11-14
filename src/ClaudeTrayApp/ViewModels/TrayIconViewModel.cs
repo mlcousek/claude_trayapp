@@ -97,9 +97,11 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
         var stale = status.State is PollState.Idle or PollState.Stale or PollState.RateLimited or PollState.Unauthenticated;
         var now = _clock.GetUtcNow();
 
+        var weekly = status.Snapshot?.FindWindow(ClaudeTrayApp.Core.Domain.WindowKeys.SevenDay)?.UtilizationPercent;
+
         IconState = primary is null
-            ? TrayIconState.Unknown with { IsStale = stale }
-            : new TrayIconState(primary.UtilizationPercent, primary.Status, stale);
+            ? TrayIconState.Unknown with { IsStale = stale, WeeklyPercent = weekly }
+            : new TrayIconState(primary.UtilizationPercent, primary.Status, stale, weekly);
         Tooltip = BuildTooltip(status, now, settings.ShowInactiveWindows, _account.Label);
 
         if (status.State == PollState.Ok && status.Snapshot is { } snapshot && settings.Notifications.Enabled)
