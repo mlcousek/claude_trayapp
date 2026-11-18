@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-18
+
 ### Added
 
 - A second Claude account: start another instance with `--claude-dir <folder>` (and optionally `--label <name>`) to
@@ -16,14 +18,14 @@ All notable changes to this project are documented here. The format follows
   two instances at once keep both changes. Unusable arguments show a message and exit with code 2 instead of quietly
   starting the default account. Before going back to 0.1.6 or older, switch **Start with Windows** off in every extra account:
   an older version ignores `--claude-dir`, so that entry would start the default account again at sign-in.
+- The tray icon flags the weekly limit: when the 7-day window is used up the numeral becomes "!!!" and the ring
+  turns black. At 100 % of the 5-hour window the numeral is "!" as before; a high weekly percentage alone no longer
+  changes the numeral.
 
 ### Fixed
 
 - A shared setting switched back by another instance (for example the theme changed and then restored) could be
   ignored, because the file then held exactly what this instance had last written itself.
-
-### Fixed
-
 - With two accounts running, only one tray icon showed: both instances run the same executable and used the same
   notification-area icon id, so each new instance took over the other's icon. A non-default account now has a fixed
   icon id of its own, derived from its Claude home.
@@ -197,7 +199,9 @@ First release. Everything below is new in this version.
 - Single-file publish failed with IL3000: the Start with Windows wiring fell back to `Assembly.Location`, which is empty in a single-file app. It now falls back to the exe next to `AppContext.BaseDirectory`.
 - Core awaits use `ConfigureAwait(false)` and the host starts and stops off the UI thread, so quitting no longer waits five seconds for the polling loop.
 
-[Unreleased]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/mlcousek/claude_trayapp/compare/v0.2.0...HEAD
+
+[0.2.0]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.6...v0.2.0
 [0.1.6]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.3...v0.1.4
