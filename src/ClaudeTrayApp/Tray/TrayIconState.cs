@@ -14,15 +14,10 @@ public sealed record TrayIconState(double? Percent, UsageWindowStatus? Status, b
     /// <summary>The weekly limit is used up: the numeral is "!!!" and the ring black.</summary>
     public bool WeeklyExhausted => WeeklyPercent is >= 99.5;
 
-    /// <summary>The weekly limit is in the critical band, but not yet used up: the numeral is "!".</summary>
-    public bool WeeklyCritical => !WeeklyExhausted && WeeklyPercent is >= UsageWindowStatusRules.CriticalThreshold;
-
-    /// <summary>The numeral: "!!!" when the weekly limit is out, "!" when it is critical or the window is at 100 %, "?" without data, otherwise the rounded percentage.</summary>
+    /// <summary>The numeral: "!!!" when the weekly limit is out, "!" when the primary window is at 100 %, "?" without data, otherwise the rounded percentage.</summary>
     public string Text => WeeklyExhausted
         ? "!!!"
-        : WeeklyCritical
-            ? "!"
-            : Percent is not { } percent
-                ? "?"
-                : percent >= 99.5 ? "!" : Math.Round(percent).ToString(CultureInfo.InvariantCulture);
+        : Percent is not { } percent
+            ? "?"
+            : percent >= 99.5 ? "!" : Math.Round(percent).ToString(CultureInfo.InvariantCulture);
 }

@@ -19,8 +19,8 @@ public class TrayIconStateTests
 
     [Theory]
     [InlineData(89.0, "45")]
-    [InlineData(90.0, "!")]
-    [InlineData(99.0, "!")]
+    [InlineData(90.0, "45")]
+    [InlineData(99.0, "45")]
     [InlineData(99.5, "!!!")]
     [InlineData(100.0, "!!!")]
     public void Weekly_limit_overrides_the_numeral(double weekly, string expected) =>
