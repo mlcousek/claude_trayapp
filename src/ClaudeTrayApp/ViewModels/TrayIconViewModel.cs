@@ -34,6 +34,7 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
     private readonly Dispatcher _dispatcher;
     private readonly Action _openSettings;
     private readonly Action _quit;
+    private readonly Action<string>? _showAbout;
     private readonly string _version;
     private readonly ILogger<TrayIconViewModel> _logger;
     private readonly AccountIdentity _account;
@@ -60,7 +61,8 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
         Action quit,
         string version,
         ILogger<TrayIconViewModel> logger,
-        AccountIdentity? account = null)
+        AccountIdentity? account = null,
+        Action<string>? showAbout = null)
     {
         _poller = poller;
         _paths = paths;
@@ -74,6 +76,7 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
         _version = version;
         _logger = logger;
         _account = account ?? AccountIdentity.Default;
+        _showAbout = showAbout;
 
         _poller.StatusChanged += OnStatusChanged;
         _settings.Changed += OnSettingsChanged;
@@ -233,8 +236,22 @@ public sealed partial class TrayIconViewModel : ObservableObject, IDisposable
     {
         var text = string.Create(
             CultureInfo.InvariantCulture,
-            $"Claude Usage Tray {_version}\n\nAn unofficial, open-source tray app that shows your Claude usage limits.\nNot affiliated with or endorsed by Anthropic.\n\nhttps://github.com/mlcousek/claude_trayapp\n\n{DescribeAccount(_account)}Logs: {_paths.LogsDirectory}");
-        MessageBox.Show(text, "About Claude Usage Tray", MessageBoxButton.OK, MessageBoxImage.Information);
+            $"Claude Usage Tray {_version}\n\nAn unofficial, open-source tray app that shows your Claude usage limits.\nNot affiliated with or endorsed by Anthropic.\n\nMade by Jiří Mlčoušek and Matěj Drlík, two software developers, mostly .NET, who like AI a lot and work with Claude every day. They wanted a good-looking tool that always shows where your usage stands.\n\nhttps://github.com/mlcousek/claude_trayapp\n\n{DescribeAccount(_account)}Logs: {_paths.LogsDirectory}");
+
+        // Let the context menu finish closing first; a box opened inside the click is dismissed with the menu.
+        _dispatcher.BeginInvoke(
+            () =>
+            {
+                if (_showAbout is { } show)
+                {
+                    show(text);
+                }
+                else
+                {
+                    MessageBox.Show(text, "About Claude Usage Tray", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            },
+            DispatcherPriority.ApplicationIdle);
     }
 
     [RelayCommand]

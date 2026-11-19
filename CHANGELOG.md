@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-19
+
+### Fixed
+
+- The About box closed the moment it opened. It was a message box shown from inside the tray menu's click, and it was
+  dismissed together with the menu. About is now its own window, opened after the menu has closed, and it stays open
+  until closed.
+
+### Changed
+
+- The About window says who made the app: Jiří Mlčoušek and Matěj Drlík.
+
 ## [0.2.0] - 2026-11-18
 
 ### Added
@@ -199,7 +211,9 @@ First release. Everything below is new in this version.
 - Single-file publish failed with IL3000: the Start with Windows wiring fell back to `Assembly.Location`, which is empty in a single-file app. It now falls back to the exe next to `AppContext.BaseDirectory`.
 - Core awaits use `ConfigureAwait(false)` and the host starts and stops off the UI thread, so quitting no longer waits five seconds for the polling loop.
 
-[Unreleased]: https://github.com/mlcousek/claude_trayapp/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/mlcousek/claude_trayapp/compare/v0.2.1...HEAD
+
+[0.2.1]: https://github.com/mlcousek/claude_trayapp/compare/v0.2.0...v0.2.1
 
 [0.2.0]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.6...v0.2.0
 [0.1.6]: https://github.com/mlcousek/claude_trayapp/compare/v0.1.5...v0.1.6

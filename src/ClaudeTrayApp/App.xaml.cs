@@ -340,6 +340,7 @@ public partial class App : Application
             sp.GetRequiredService<ILogger<SettingsCoordinator>>(),
             sp.GetRequiredKeyedService<SettingsStore>(GlobalSettingsKey)));
         services.AddSingleton(sp => new SettingsWindowHost(sp));
+        services.AddSingleton(sp => new AboutWindowHost(sp));
         services.AddSingleton(sp => new SettingsViewModel(
             sp.GetRequiredService<SettingsStore>(),
             sp.GetRequiredService<IAutostartEntry>(),
@@ -365,7 +366,8 @@ public partial class App : Application
             () => Shutdown(0),
             version,
             sp.GetRequiredService<ILogger<TrayIconViewModel>>(),
-            sp.GetRequiredService<AccountIdentity>()));
+            sp.GetRequiredService<AccountIdentity>(),
+            text => sp.GetRequiredService<AboutWindowHost>().Show(text)));
         services.AddSingleton<TrayIconController>();
         services.AddSingleton<IAccountInfoSource>(_ => new AccountInfoFileSource(paths.ClaudeConfigFile));
         services.AddSingleton(sp => new FlyoutViewModel(

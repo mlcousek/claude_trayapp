@@ -229,4 +229,65 @@ public class TrayIconViewModelTests
             return true;
         });
     }
+
+    [Fact]
+    public void About_hands_its_text_to_the_about_window_once_the_dispatcher_runs()
+    {
+        StaThread.Run(() =>
+        {
+            var settingsPath = Path.Combine(Path.GetTempPath(), "ClaudeTrayAppTests", Guid.NewGuid() + ".settings.json");
+            using var settingsStore = new SettingsStore(settingsPath, NullLogger<SettingsStore>.Instance);
+            try
+            {
+                settingsStore.Load();
+                using var poller = new UsagePoller(
+                    Substitute.For<IUsageProvider>(),
+                    Substitute.For<ISnapshotCache>(),
+                    new PollingOptions(),
+                    new FixedTimeProvider(Now),
+                    NullLogger<UsagePoller>.Instance);
+                var autostart = new AutostartManager(
+                    Path.Combine(Path.GetTempPath(), "ClaudeTrayAppTests", "not-the-real-exe-" + Guid.NewGuid() + ".exe"),
+                    NullLogger<AutostartManager>.Instance);
+                var dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+                string? shown = null;
+                var viewModel = new TrayIconViewModel(
+                    poller,
+                    new AppPaths(Path.GetTempPath(), Path.GetTempPath(), Path.GetTempPath()),
+                    settingsStore,
+                    new ThresholdNotifier(),
+                    autostart,
+                    new FixedTimeProvider(Now),
+                    dispatcher,
+                    openSettings: () => { },
+                    quit: () => { },
+                    version: "9.9.9-test",
+                    NullLogger<TrayIconViewModel>.Instance,
+                    showAbout: text => shown = text);
+                try
+                {
+                    viewModel.AboutCommand.Execute(null);
+                    shown.ShouldBeNull();
+
+                    var frame = new System.Windows.Threading.DispatcherFrame();
+                    dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () => frame.Continue = false);
+                    System.Windows.Threading.Dispatcher.PushFrame(frame);
+
+                    shown.ShouldNotBeNull();
+                    shown.ShouldContain("Claude Usage Tray 9.9.9-test");
+                    shown.ShouldContain("Matěj Drlík");
+                }
+                finally
+                {
+                    viewModel.Dispose();
+                }
+            }
+            finally
+            {
+                File.Delete(settingsPath);
+            }
+
+            return true;
+        });
+    }
 }
